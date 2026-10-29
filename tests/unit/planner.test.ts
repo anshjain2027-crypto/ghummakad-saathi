@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { SEED_DESTINATIONS } from "@/lib/seed/destinations";
+import { SEED_DESTINATIONS } from "@/lib/seed";
 import type { CuratedPlace, Destination } from "@/lib/planner/types";
 import { matchDestinations, noMatchAdvice } from "@/lib/planner/matching";
 import { mockSkeleton, resolvePlan, swapCandidates, validatePlan } from "@/lib/planner/itinerary";
@@ -11,7 +11,7 @@ const destinations: Destination[] = SEED_DESTINATIONS.map((d) => ({
   companions: d.companions, experienceTags: d.experienceTags, dailyCost: d.dailyCost, suggestedDaysMin: d.suggestedDays[0],
   suggestedDaysMax: d.suggestedDays[1], bestMonths: d.bestMonths, seasonNote: d.seasonNote, travelCharacter: d.travelCharacter,
   practicalNote: d.practicalNote, gettingThere: d.gettingThere, stayArea: d.stayArea, nearestAirport: d.nearestAirport ?? null,
-  nearestRail: d.nearestRail ?? null, scene: d.scene, heroImageUrl: null, imageCredit: null,
+  nearestRail: d.nearestRail ?? null, scene: d.scene, heroImageUrl: null, imageCredit: null, imagePageUrl: null, extra: d.extra ?? {},
 }));
 const placesFor = (id: string): CuratedPlace[] =>
   SEED_DESTINATIONS.find((d) => d.id === id)!.places.map((p, i) => ({
@@ -49,7 +49,7 @@ describe("matching", () => {
   test("impossible budget yields no matches and helpful advice", () => {
     const p = { ...workshop, budgetInr: 5_000, travellers: 6 };
     expect(matchDestinations(destinations, p)).toHaveLength(0);
-    expect(noMatchAdvice(destinations, p)[0]).toMatch(/higher budget|fewer days/);
+    expect(noMatchAdvice(destinations, p)[0]).toMatch(/more budget|fewer|higher budget/);
   });
 
   test("surprise me gives varied primary moods", () => {

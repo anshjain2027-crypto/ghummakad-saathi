@@ -1,4 +1,5 @@
-import { findCity, haversineKm, roundTo, transportEstimatePerPersonInr } from "@/lib/geo";
+import { findCity, haversineKm, roundTo, transportEstimatePerPersonInr, type City } from "@/lib/geo";
+import { preferredOption, roundTripPerPerson, travelOptions, type TravelOption } from "@/lib/travel/options";
 import { styleCostKey } from "@/lib/domain";
 import { MOODS, STYLES, COMPANIONS } from "@/lib/domain";
 import type { Preferences } from "./schema";
@@ -9,21 +10,46 @@ import type { Destination, Estimate, Match, MatchReason } from "./types";
  * the same three destinations. Sponsorship is never an input here.
  */
 
+/** Longest sensible one-way journey (hours) for a trip of this length. */
+export function maxTravelHours(days: number): number {
+  if (days <= 1) return 3.5;
+  if (days === 2) return 13;
+  if (days === 3) return 16;
+  if (days <= 5) return 24;
+  return 40;
+}
+
+export function destinationTravelOptions(d: Destination, city: City | undefined, travellers: number, date?: string | null): TravelOption[] {
+  if (!city) return [];
+  return travelOptions(city, { name: d.name, lat: d.lat, lng: d.lng, access: d.extra?.access, countryCode: d.countryCode }, { travellers, date });
+}
+
 export function estimateTrip(d: Destination, p: Preferences): Estimate {
   const band = d.dailyCost[styleCostKey(p.style)];
   const romanticBump = p.style === "romantic" ? 1.15 : 1;
   const perDay: [number, number] = [Math.round(band[0] * romanticBump), Math.round(band[1] * romanticBump)];
-  const onTrip: [number, number] = [perDay[0] * p.days * p.travellers, perDay[1] * p.days * p.travellers];
+  // The last day has no hotel night (stay is roughly 45% of a day's spend).
+  const effectiveDays = Math.max(0.55, p.days - 0.45);
+  const onTrip: [number, number] = [roundTo(perDay[0] * effectiveDays * p.travellers, 100), roundTo(perDay[1] * effectiveDays * p.travellers, 100)];
 
   const city = findCity(p.originCityId) ?? findCity(p.origin);
   const distanceKm = city ? Math.round(haversineKm(city, d)) : null;
-  const perPersonTransport = distanceKm === null ? ([3000, 12000] as [number, number]) : transportEstimatePerPersonInr(distanceKm);
+  const options = destinationTravelOptions(d, city, p.travellers, p.startDate ?? null);
+  const chosen = preferredOption(options, p.style, p.travellers);
+  const perPersonTransport: [number, number] = chosen
+    ? roundTripPerPerson(chosen, p.travellers, p.style)
+    : distanceKm === null
+      ? [3000, 12000]
+      : distanceKm < 15
+        ? [0, 300]
+        : transportEstimatePerPersonInr(distanceKm);
   const transport: [number, number] = p.budgetIncludesTransport
     ? [perPersonTransport[0] * p.travellers, perPersonTransport[1] * p.travellers]
     : [0, 0];
 
   const total: [number, number] = [roundTo(onTrip[0] + transport[0], 500), roundTo(onTrip[1] + transport[1], 500)];
   const withinBudget = total[0] <= p.budgetInr ? (total[1] <= p.budgetInr * 1.05 ? "yes" : "stretch") : total[0] <= p.budgetInr * 1.2 ? "stretch" : "no";
+  const hours = chosen ? chosen.hours[0] : distanceKm !== null ? distanceKm / 45 : 0;
 
   return {
     perDayPerPerson: perDay,
@@ -33,6 +59,8 @@ export function estimateTrip(d: Destination, p: Preferences): Estimate {
     distanceKm,
     withinBudget,
     international: city ? city.countryCode !== d.countryCode : d.countryCode !== "IN",
+    travel: chosen ? { mode: chosen.mode, label: chosen.label, hours: chosen.hours, overnight: chosen.overnight } : null,
+    tooFar: hours > maxTravelHours(p.days) * (p.days <= 3 ? 1.25 : 1.6),
   };
 }
 
@@ -86,14 +114,29 @@ export function scoreDestination(d: Destination, p: Preferences): { score: numbe
   } else {
     score -= 30;
   }
+  // Closer to budget is better: penalise how far the middle of the estimate overshoots.
+  const mid = (estimate.total[0] + estimate.total[1]) / 2;
+  if (mid > p.budgetInr) score -= Math.min(10, Math.round((10 * (mid - p.budgetInr)) / p.budgetInr));
 
+  const maxH = maxTravelHours(p.days);
+  const t = estimate.travel;
   if (p.days >= d.suggestedDaysMin && p.days <= d.suggestedDaysMax + 1) {
-    score += 10;
-    reasons.push({ factor: "duration", text: `${p.days} days is about right here, without rushing.` });
+    score += p.days <= d.suggestedDaysMax ? 10 : 5;
+    reasons.push({
+      factor: "duration",
+      text:
+        p.days <= 2 && t
+          ? `Made for a ${p.days === 1 ? "day trip" : "weekend"}: about ${Math.round(t.hours[0])} h by ${t.label.toLowerCase()}${t.overnight ? " overnight, so you lose no daylight" : ""}.`
+          : `${p.days} ${p.days === 1 ? "day" : "days"} is about right here, without rushing.`,
+    });
   } else if (p.days < d.suggestedDaysMin) {
-    score -= (d.suggestedDaysMin - p.days) * 6;
+    score -= (d.suggestedDaysMin - p.days) * 8;
   } else {
     score += 2;
+  }
+  if (t) {
+    if (t.hours[0] > maxH) score -= 20;
+    else if (p.days <= 4) score += Math.round(12 * (1 - t.hours[0] / maxH));
   }
 
   let seasonCaveat: string | null = null;
@@ -127,7 +170,7 @@ export function scoreDestination(d: Destination, p: Preferences): { score: numbe
 export function matchDestinations(destinations: Destination[], p: Preferences, limit = 3): Match[] {
   const scored = destinations
     .map((d) => ({ d, ...scoreDestination(d, p) }))
-    .filter((s) => s.estimate.withinBudget !== "no")
+    .filter((s) => s.estimate.withinBudget !== "no" && !s.estimate.tooFar)
     .filter((s) => p.mood === "surprise" || s.d.moods.includes(p.mood as never))
     .sort((a, b) => b.score - a.score || a.d.id.localeCompare(b.d.id));
 
@@ -152,12 +195,13 @@ export function matchDestinations(destinations: Destination[], p: Preferences, l
 /** When nothing fits, tell the traveller which lever would help most. */
 export function noMatchAdvice(destinations: Destination[], p: Preferences): string[] {
   const tips: string[] = [];
-  const cheapest = destinations
-    .filter((d) => p.mood === "surprise" || d.moods.includes(p.mood as never))
-    .map((d) => estimateTrip(d, p).total[0])
-    .sort((a, b) => a - b)[0];
-  if (cheapest && cheapest > p.budgetInr) {
-    tips.push(`The closest fit starts at around ₹${cheapest.toLocaleString("en-IN")} for your group — try a higher budget or fewer days.`);
+  const inMood = destinations.filter((d) => p.mood === "surprise" || d.moods.includes(p.mood as never));
+  const near = inMood.filter((d) => !estimateTrip(d, p).tooFar);
+  const cheapest = near.map((d) => estimateTrip(d, p).total[0]).sort((a, b) => a - b)[0];
+  if (!near.length && inMood.length) {
+    tips.push(`Places for this mood are a long journey from ${p.origin} for ${p.days} ${p.days === 1 ? "day" : "days"} — add a day or two, or try “Surprise me”.`);
+  } else if (cheapest && cheapest > p.budgetInr) {
+    tips.push(`The closest fit starts at around ₹${cheapest.toLocaleString("en-IN")} for your group — try a little more budget, Backpacking style, or one day fewer.`);
   }
   if (p.style === "luxury") tips.push("A Comfortable style opens up more options at this budget.");
   if (p.mood !== "surprise") tips.push("Try “Surprise me” to see places outside your chosen mood.");

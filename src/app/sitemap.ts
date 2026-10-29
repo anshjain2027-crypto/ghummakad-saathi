@@ -1,5 +1,5 @@
 import type { MetadataRoute } from "next";
-import { SEED_DESTINATIONS } from "@/lib/seed/destinations";
+import { SEED_DESTINATIONS } from "@/lib/seed";
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const base = process.env.APP_URL ?? "http://localhost:3000";

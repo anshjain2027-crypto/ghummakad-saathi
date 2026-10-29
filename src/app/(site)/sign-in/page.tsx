@@ -7,7 +7,7 @@ import { SignInForm } from "./sign-in-form";
 
 export const metadata: Metadata = { title: "Sign in" };
 
-export default async function SignInPage({ searchParams }: { searchParams: Promise<{ next?: string; reason?: string; error?: string }> }) {
+export default async function SignInPage({ searchParams }: { searchParams: Promise<{ next?: string; reason?: string; error?: string; mode?: string }> }) {
   const sp = await searchParams;
   const next = safeNext(sp.next);
   if (await getCurrentUser()) redirect(next);
@@ -28,14 +28,14 @@ export default async function SignInPage({ searchParams }: { searchParams: Promi
         <p className="mt-3 text-[17px] text-ink-soft">{reason}</p>
         {sp.error === "link" ? (
           <p role="alert" className="mt-6 rounded-[12px] border border-sand bg-sand-soft px-4 py-3 text-[15px]">
-            That sign-in link has expired or was opened in a different browser. Enter your email again and open the new link in this same browser.
+            That sign-in link has expired or was opened in a different browser. Sign in with your password, or ask for a new 6-digit code.
           </p>
         ) : null}
         <div className="mt-8">
-          <SignInForm next={next} demo={authMode === "demo"} />
+          <SignInForm next={next} demo={authMode === "demo"} initialMode={sp.mode === "signup" ? "signup" : sp.mode === "code" ? "code" : "password"} />
         </div>
         <p className="mt-6 text-[13px] text-ink-soft">
-          New here? Entering your email creates a free account. We only use it to sign you in and send trip receipts.
+          Your account is free. We only use your email to sign you in and send trip receipts — never for spam.
         </p>
       </div>
       <Scene kind="lake" seed="sign-in" label="A calm mountain lake" className="hidden aspect-[4/5] rounded-[var(--radius-card)] lg:block" />

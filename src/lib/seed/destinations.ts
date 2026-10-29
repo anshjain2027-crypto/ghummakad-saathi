@@ -1,4 +1,5 @@
 import type { CompanionId, DailyCost, MoodId, PlaceCategory, SceneId, StyleId } from "@/lib/domain";
+import type { DestinationExtra } from "@/lib/planner/types";
 
 /**
  * Editorial seed catalogue. Written independently by the Ghummakad Saathi team
@@ -20,6 +21,8 @@ export type SeedPlace = {
   bestTime: "morning" | "afternoon" | "evening" | "any";
   hiddenGem?: boolean;
   scene?: SceneId;
+  /** Wikipedia article title for a licensed photo (defaults to the name). */
+  photo?: string;
 };
 
 export type SeedDestination = {
@@ -49,6 +52,7 @@ export type SeedDestination = {
   nearestAirport?: string;
   nearestRail?: string;
   scene: SceneId;
+  extra?: DestinationExtra;
   places: SeedPlace[];
 };
 

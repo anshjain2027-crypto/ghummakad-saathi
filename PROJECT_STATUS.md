@@ -1,4 +1,4 @@
-# Project status — 29 October 2026
+# Project status — 30 October 2026
 
 Legend: **Done** (real, tested) · **Mock** (works with labelled demo data/flows) · **Redirect** (honest outbound link) · **Blocked** (needs an owner decision, credential or partner approval).
 
@@ -7,6 +7,11 @@ Legend: **Done** (real, tested) · **Mock** (works with labelled demo data/flows
 | Area | State | Evidence |
 | --- | --- | --- |
 | Visual planner (6 questions, back/edit, validation) | Done | `tests/e2e/journey.spec.ts` |
+| Budgets from ₹5,000 (log slider ₹5k–₹2L+, presets), day trips and 2D/1N weekends | Done | `tests/unit/travel.test.ts` |
+| Rome2rio-style travel options: flight / train / bus / self-drive with door-to-door time, fares and booking links | Done (rule-based estimates) | `src/lib/travel/*` |
+| India catalogue v2: 48 Indian destinations incl. weekend treks (Triund, Kheerganga, Nag Tibba, Chopta, Kalsubai…) | Done | `src/lib/seed/india.ts` |
+| Real photos (Wikimedia Commons, free licences only, credited, location-checked) | Done · fills in automatically | `src/lib/photos.ts` |
+| Email + password accounts, 6-digit email codes, forgot-password by code | Done in code · email template needs `{{ .Token }}` | `tests/e2e/auth.spec.ts` |
 | Destination matching (≤3, reasons, budget bands, season caveats, no-match advice) | Done | `tests/unit/planner.test.ts` |
 | Itinerary generation (curated places only, server-side resolution + validation) | Done (deterministic) · LLM path ready | `src/lib/ai/provider.ts`; LLM needs keys |
 | Pricing ₹499 / ₹999, 1/4/5/10 travellers | Done | `tests/unit/pricing.test.ts` |

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Scene } from "@/components/scene";
 import { Button, Chip, Illustrative, Notice, inputClass } from "@/components/ui";
-import { COMPANIONS, DURATIONS, INTERESTS, MOODS, PACES, STYLES, travellerCountFor, type CompanionId, type MoodId, type PaceId, type StyleId } from "@/lib/domain";
+import { BUDGET_PRESETS, COMPANIONS, DURATIONS, INTERESTS, MOODS, PACES, STYLES, tripLabel, travellerCountFor, type CompanionId, type MoodId, type PaceId, type StyleId } from "@/lib/domain";
 import { CITIES, DISPLAY_CURRENCIES, formatMoney } from "@/lib/geo";
 import { priceFor } from "@/lib/pricing";
 import { findMatchesAction } from "@/app/actions/planner";
@@ -29,6 +29,20 @@ type State = {
   exclusions: string;
 };
 
+/** Log-scale budget slider: 0..1000 → ₹5,000..₹2,00,000. */
+const B_MIN = 5000;
+const B_MAX = 200000;
+function sliderToBudget(t: number): number {
+  const v = B_MIN * Math.pow(B_MAX / B_MIN, t / 1000);
+  const step = v < 20000 ? 500 : v < 100000 ? 1000 : 5000;
+  return Math.round(v / step) * step;
+}
+function budgetToSlider(v: number): number {
+  const c = Math.min(Math.max(v, B_MIN), B_MAX);
+  return Math.round((Math.log(c / B_MIN) / Math.log(B_MAX / B_MIN)) * 1000);
+}
+const shortInr = (n: number) => (n >= 100000 ? `₹${n / 100000}L${n >= B_MAX ? "+" : ""}` : `₹${n / 1000}k`);
+
 const STEPS = ["mood", "companions", "style", "where", "extras", "budget"] as const;
 type Step = (typeof STEPS)[number];
 
@@ -46,8 +60,8 @@ function fromPrefs(p: Preferences | null, presetMood?: MoodId): State {
     dateMode: p?.dateMode ?? "flexible",
     startDate: p?.startDate ?? "",
     month: p?.month ?? nextMonth,
-    days: p?.days ?? 5,
-    budgetInr: p?.budgetInr ?? 40000,
+    days: p?.days ?? 3,
+    budgetInr: p?.budgetInr ?? 15000,
     budgetIncludesTransport: p?.budgetIncludesTransport ?? true,
     displayCurrency: p?.displayCurrency ?? "INR",
     interests: p?.interests ?? [],
@@ -81,7 +95,7 @@ export function Wizard({ initial, presetMood, startAtSummary }: { initial: Prefe
     style: !!s.style,
     where: s.origin.trim().length >= 2 && (s.dateMode !== "dates" || /^\d{4}-\d{2}-\d{2}$/.test(s.startDate)),
     extras: true,
-    budget: s.budgetInr >= 5000 && s.days >= 2,
+    budget: s.budgetInr >= 2000 && s.days >= 1,
   };
 
   const city = CITIES.find((c) => c.name.toLowerCase() === s.origin.trim().toLowerCase());
@@ -313,12 +327,23 @@ export function Wizard({ initial, presetMood, startAtSummary }: { initial: Prefe
                   </div>
                   <p className="nums mt-2 font-serif text-[44px] leading-none text-forest">{formatMoney(s.budgetInr, s.displayCurrency)}</p>
                   {s.displayCurrency !== "INR" ? <p className="mt-1 text-[13px] text-ink-soft">≈ ₹{s.budgetInr.toLocaleString("en-IN")} · indicative conversion, not a quote</p> : null}
-                  <input id="budget" type="range" min={10000} max={1000000} step={5000} value={Math.min(s.budgetInr, 1000000)} onChange={(e) => set("budgetInr", Number(e.target.value))} className="mt-4 h-11 w-full accent-[var(--forest)]" aria-valuetext={`₹${s.budgetInr.toLocaleString("en-IN")}`} />
+                  <input id="budget" type="range" min={0} max={1000} step={1} value={budgetToSlider(s.budgetInr)} onChange={(e) => set("budgetInr", sliderToBudget(Number(e.target.value)))} className="mt-4 h-11 w-full accent-[var(--forest)]" aria-valuetext={`₹${s.budgetInr.toLocaleString("en-IN")}`} />
+                  <div className="mt-1 flex justify-between text-[12px] text-ink-soft" aria-hidden>
+                    <span>₹5,000</span>
+                    <span>₹2,00,000+</span>
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2" role="group" aria-label="Quick budgets">
+                    {BUDGET_PRESETS.map((b) => (
+                      <button key={b} type="button" aria-pressed={s.budgetInr === b} onClick={() => set("budgetInr", b)} className={`min-h-9 rounded-full border px-3 text-[14px] ${s.budgetInr === b ? "border-forest bg-forest text-cream" : "border-line-strong bg-surface hover:border-forest"}`}>
+                        {b >= 100000 ? "₹1L+" : shortInr(b)}
+                      </button>
+                    ))}
+                  </div>
                   <div className="mt-2 flex items-center gap-3">
                     <label htmlFor="budgetExact" className="text-[14px] text-ink-soft">
                       Or type an amount in ₹
                     </label>
-                    <input id="budgetExact" type="number" inputMode="numeric" min={5000} max={5000000} step={1000} className={`${inputClass} nums w-40`} value={s.budgetInr} onChange={(e) => set("budgetInr", Math.max(0, Number(e.target.value)))} />
+                    <input id="budgetExact" type="number" inputMode="numeric" min={2000} max={5000000} step={1000} className={`${inputClass} nums w-40`} value={s.budgetInr} onChange={(e) => set("budgetInr", Math.max(0, Number(e.target.value)))} />
                   </div>
                   <label className="mt-4 flex min-h-11 items-center gap-3 text-[15px]">
                     <input type="checkbox" checked={s.budgetIncludesTransport} onChange={(e) => set("budgetIncludesTransport", e.target.checked)} className="h-5 w-5 accent-[var(--forest)]" />
@@ -330,7 +355,7 @@ export function Wizard({ initial, presetMood, startAtSummary }: { initial: Prefe
                   <legend className="text-[15px] font-medium">How long?</legend>
                   <div className="mt-3 flex flex-wrap gap-2">
                     {DURATIONS.map((d) => {
-                      const on = d.id === "3-4" ? s.days <= 4 : d.id === "5-6" ? s.days === 5 || s.days === 6 : s.days >= 7;
+                      const on = s.days >= d.min && s.days <= d.max;
                       return (
                         <button key={d.id} type="button" aria-pressed={on} onClick={() => set("days", d.days)} className={`min-h-11 rounded-[var(--radius-control)] border px-4 text-[15px] ${on ? "border-forest bg-forest text-cream" : "border-line-strong bg-surface hover:border-forest"}`}>
                           {d.label}
@@ -342,7 +367,7 @@ export function Wizard({ initial, presetMood, startAtSummary }: { initial: Prefe
                     <span id="days-label" className="text-[14px] text-ink-soft">
                       Exactly
                     </span>
-                    <Stepper labelledBy="days-label" value={s.days} min={2} max={14} onChange={(v) => set("days", v)} suffix="days" />
+                    <Stepper labelledBy="days-label" value={s.days} min={1} max={14} onChange={(v) => set("days", v)} suffix={s.days === 1 ? "day" : "days"} />
                   </div>
                 </fieldset>
               </div>
@@ -354,7 +379,7 @@ export function Wizard({ initial, presetMood, startAtSummary }: { initial: Prefe
                   {s.style ? <Chip>{STYLES.find((x) => x.id === s.style)!.label}</Chip> : null}
                   <Chip>{PACES.find((p) => p.id === s.pace)!.label} pace</Chip>
                   {s.origin ? <Chip tone="plain">From {s.origin}</Chip> : null}
-                  <Chip tone="plain">{s.days} days</Chip>
+                  <Chip tone="plain">{tripLabel(s.days)}</Chip>
                 </div>
                 <div className="mt-5 flex flex-wrap gap-x-4 gap-y-1 text-[14px]">
                   {(["mood", "companions", "style", "where"] as Step[]).map((st) => (

@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { createServerClient } from "@supabase/ssr";
 import { config } from "@/lib/config";
 import { asService, one } from "@/lib/db";
-import { randomInt } from "node:crypto";
+import { randomBytes, randomInt, scryptSync, timingSafeEqual } from "node:crypto";
 import { sha256, signToken, verifyToken } from "@/lib/crypto";
 
 export type Role = "moderator" | "admin";
@@ -145,8 +145,9 @@ export async function startEmailSignIn(email: string, next = "/"): Promise<Start
 export async function verifyEmailCode(email: string, code: string): Promise<{ ok: true; userId: string } | { ok: false; error: string }> {
   if (authMode === "supabase") {
     const sb = await supabaseServer();
-    const { data, error } = await sb.auth.verifyOtp({ email, token: code, type: "email" });
-    if (error || !data.user) return { ok: false, error: "That code didn't work. Check it and try again." };
+    let { data, error } = await sb.auth.verifyOtp({ email, token: code, type: "email" });
+    if (error || !data.user) ({ data, error } = await sb.auth.verifyOtp({ email, token: code, type: "signup" }));
+    if (error || !data.user) return { ok: false, error: "That code didn't work or has expired. Check the latest email and try again." };
     return { ok: true, userId: data.user.id };
   }
   const result = await asService(async (q) => {
@@ -190,4 +191,142 @@ export async function signOut() {
 export async function visitorHash(): Promise<string> {
   const vid = (await cookies()).get("gs_vid")?.value ?? "no-visitor-cookie";
   return sha256(`${config.sessionSecret}:vid:${vid}`).slice(0, 32);
+}
+
+// ───────────── Email + password ─────────────
+
+export type PasswordResult = { ok: true; needsCode?: boolean } | { ok: false; error: string; code?: "exists" | "unconfirmed" | "invalid" | "rate" };
+
+function hashPassword(pw: string): string {
+  const salt = randomBytes(16);
+  return `scrypt$${salt.toString("hex")}$${scryptSync(pw, salt, 32).toString("hex")}`;
+}
+function checkPassword(pw: string, stored: string): boolean {
+  const [, saltHex, hashHex] = stored.split("$");
+  if (!saltHex || !hashHex) return false;
+  const a = scryptSync(pw, Buffer.from(saltHex, "hex"), 32);
+  const b = Buffer.from(hashHex, "hex");
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
+async function setDemoSession(uid: string, email: string) {
+  const store = await cookies();
+  store.set(SESSION_COOKIE, signToken({ uid, email, exp: Math.floor(Date.now() / 1000) + SESSION_TTL_S }, "session"), {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: config.isProd,
+    path: "/",
+    maxAge: SESSION_TTL_S,
+  });
+}
+
+function friendly(message: string | undefined, status?: number): { error: string; code?: "exists" | "unconfirmed" | "invalid" | "rate" } {
+  const m = (message ?? "").toLowerCase();
+  if (status === 429 || m.includes("rate limit")) return { error: "Too many emails sent recently. Please wait a few minutes and try again.", code: "rate" };
+  if (m.includes("not confirmed")) return { error: "Please confirm your email first — enter the 6-digit code we sent.", code: "unconfirmed" };
+  if (m.includes("already registered") || m.includes("already exists")) return { error: "An account with this email already exists. Sign in instead, or reset your password.", code: "exists" };
+  if (m.includes("invalid login") || m.includes("invalid credentials")) return { error: "That email and password don't match.", code: "invalid" };
+  if (m.includes("password")) return { error: "Choose a stronger password: at least 8 characters, not a common one." };
+  return { error: "Something went wrong. Please try again in a minute." };
+}
+
+export async function signInWithPassword(email: string, password: string): Promise<PasswordResult> {
+  if (authMode === "supabase") {
+    const sb = await supabaseServer();
+    const { data, error } = await sb.auth.signInWithPassword({ email, password });
+    if (error || !data.user) return { ok: false, ...friendly(error?.message, error?.status) };
+    return { ok: true };
+  }
+  const row = await asService(async (q) =>
+    one<{ id: string; password_hash: string }>(
+      q,
+      `select u.id, p.password_hash from auth.demo_password p join auth.users u on lower(u.email) = p.email where p.email = $1`,
+      [email],
+    ),
+  );
+  if (!row || !checkPassword(password, row.password_hash)) return { ok: false, error: "That email and password don't match.", code: "invalid" };
+  await setDemoSession(row.id, email);
+  return { ok: true };
+}
+
+export async function signUpWithPassword(email: string, password: string, displayName: string, next = "/"): Promise<PasswordResult & { demoCode?: string }> {
+  if (authMode === "supabase") {
+    const sb = await supabaseServer();
+    const { data, error } = await sb.auth.signUp({
+      email,
+      password,
+      options: { data: { display_name: displayName }, emailRedirectTo: `${config.appUrl}/auth/callback?next=${encodeURIComponent(safeNext(next))}` },
+    });
+    if (error) return { ok: false, ...friendly(error.message, error.status) };
+    // Supabase returns a user with no identities when the email is already registered.
+    if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+      return { ok: false, error: "An account with this email already exists. Sign in instead, or reset your password.", code: "exists" };
+    }
+    if (data.session) return { ok: true };
+    return { ok: true, needsCode: true };
+  }
+  const exists = await asService((q) => one<{ email: string }>(q, `select email from auth.demo_password where email = $1`, [email]));
+  if (exists) return { ok: false, error: "An account with this email already exists. Sign in instead, or reset your password.", code: "exists" };
+  const uid = await asService(async (q) => {
+    const u = await one<{ id: string }>(
+      q,
+      `insert into auth.users (email, raw_user_meta_data) values ($1, $2) on conflict (email) do update set email = excluded.email returning id`,
+      [email, JSON.stringify({ display_name: displayName })],
+    );
+    await q.query(`insert into auth.demo_password (email, password_hash) values ($1, $2)`, [email, hashPassword(password)]);
+    return u!.id;
+  });
+  await setDemoSession(uid, email);
+  return { ok: true };
+}
+
+/** Sends a 6-digit reset code (and a link) to the email. Never reveals whether the account exists. */
+export async function startPasswordReset(email: string): Promise<{ ok: true; demoCode?: string } | { ok: false; error: string }> {
+  if (authMode === "supabase") {
+    const sb = await supabaseServer();
+    const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: `${config.appUrl}/auth/callback?next=${encodeURIComponent("/profile?reset=1")}` });
+    if (error && (error.status === 429 || /rate limit/i.test(error.message))) return { ok: false, error: friendly(error.message, 429).error };
+    return { ok: true };
+  }
+  return startEmailSignIn(email, "/") as Promise<{ ok: true; demoCode?: string }>;
+}
+
+export async function completePasswordReset(email: string, code: string, newPassword: string): Promise<PasswordResult> {
+  if (authMode === "supabase") {
+    const sb = await supabaseServer();
+    const { data, error } = await sb.auth.verifyOtp({ email, token: code, type: "recovery" });
+    if (error || !data.user) return { ok: false, error: "That code didn't work or has expired. Request a new one." };
+    const upd = await sb.auth.updateUser({ password: newPassword });
+    if (upd.error) return { ok: false, ...friendly(upd.error.message, upd.error.status) };
+    return { ok: true };
+  }
+  const v = await verifyEmailCode(email, code);
+  if (!v.ok) return { ok: false, error: v.error };
+  await asService((q) =>
+    q.query(
+      `insert into auth.demo_password (email, password_hash) values ($1, $2)
+       on conflict (email) do update set password_hash = excluded.password_hash, updated_at = now()`,
+      [email, hashPassword(newPassword)],
+    ),
+  );
+  return { ok: true };
+}
+
+/** Signed-in users can set or change their password (e.g. accounts created with an email code). */
+export async function setPassword(userId: string, email: string, newPassword: string): Promise<PasswordResult> {
+  if (authMode === "supabase") {
+    const sb = await supabaseServer();
+    const { error } = await sb.auth.updateUser({ password: newPassword });
+    if (error) return { ok: false, ...friendly(error.message, error.status) };
+    return { ok: true };
+  }
+  await asService((q) =>
+    q.query(
+      `insert into auth.demo_password (email, password_hash) values ($1, $2)
+       on conflict (email) do update set password_hash = excluded.password_hash, updated_at = now()`,
+      [email, hashPassword(newPassword)],
+    ),
+  );
+  void userId;
+  return { ok: true };
 }

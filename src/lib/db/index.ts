@@ -3,7 +3,7 @@ import { config } from "@/lib/config";
 import type { Queryable, Database } from "./types";
 import { createPgliteDatabase } from "./pglite";
 import { createPostgresDatabase } from "./postgres";
-import { seedDatabase } from "@/lib/seed";
+import { CATALOGUE_VERSION, seedDatabase } from "@/lib/seed";
 
 export type { Queryable } from "./types";
 
@@ -19,13 +19,20 @@ function getDatabase(): Promise<Database> {
   return globalThis.__gsDb;
 }
 
-/** Production: seed the editorial catalogue on first boot if it is empty (idempotent). */
+/** Production: (re)seed the editorial catalogue on boot when its version changes (idempotent upserts). */
 async function bootPostgres(url: string): Promise<Database> {
   const db = createPostgresDatabase(url);
   try {
     await db.transaction(async (q) => {
-      const r = await q.query<{ n: number }>(`select count(*)::int as n from public.destination`);
-      if (Number(r[0]?.n ?? 0) === 0) await seedDatabase(q, { demo: false });
+      const r = await q.query<{ v: unknown }>(`select value as v from public.app_setting where key = 'catalogue_version'`);
+      const current = r[0]?.v;
+      const version = typeof current === "string" && current.startsWith('"') ? JSON.parse(current) : current;
+      if (version !== CATALOGUE_VERSION) {
+        await q.query(`select pg_advisory_xact_lock(4207001)`);
+        const again = await q.query<{ v: unknown }>(`select value as v from public.app_setting where key = 'catalogue_version'`);
+        const v2 = again[0]?.v;
+        if ((typeof v2 === "string" && v2.startsWith('"') ? JSON.parse(v2) : v2) !== CATALOGUE_VERSION) await seedDatabase(q, { demo: false });
+      }
     });
   } catch (e) {
     console.error("catalogue seed check failed", e);

@@ -1,5 +1,12 @@
 import type { Queryable } from "@/lib/db/types";
-import { SEED_DESTINATIONS } from "./destinations";
+import { SEED_DESTINATIONS as BASE } from "./destinations";
+import { INDIA_DESTINATIONS } from "./india";
+import { DESTINATION_EXTRAS } from "./extras";
+
+/** Bump when the editorial catalogue changes so production re-seeds on boot. */
+export const CATALOGUE_VERSION = "2026-10-30.1";
+
+export const SEED_DESTINATIONS = [...BASE, ...INDIA_DESTINATIONS].map((d) => ({ ...d, extra: { ...(DESTINATION_EXTRAS[d.id] ?? {}), ...(d.extra ?? {}) } }));
 
 export const PROVIDER_STATUS_SEED = [
   { provider: "booking_com", category: "stay", mode: "redirect", notes: "Outbound search links only. Affiliate ID and Demand API require partner approval.", docs: "https://developers.booking.com/demand/docs/getting-started/prerequisites" },
@@ -29,33 +36,36 @@ export async function seedDatabase(q: Queryable, opts: { demo?: boolean } = { de
     await q.query(
       `insert into public.destination (id, name, region, country, country_code, lat, lng, timezone, local_currency, tagline, story,
         moods, styles, companions, experience_tags, daily_cost_inr, suggested_days_min, suggested_days_max, best_months,
-        season_note, travel_character, practical_note, getting_there, stay_area, nearest_airport_iata, nearest_rail_station, scene)
-       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27)
+        season_note, travel_character, practical_note, getting_there, stay_area, nearest_airport_iata, nearest_rail_station, scene, extra)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28::jsonb)
        on conflict (id) do update set name = excluded.name, tagline = excluded.tagline, story = excluded.story,
         moods = excluded.moods, styles = excluded.styles, companions = excluded.companions, experience_tags = excluded.experience_tags,
         daily_cost_inr = excluded.daily_cost_inr, suggested_days_min = excluded.suggested_days_min, suggested_days_max = excluded.suggested_days_max,
         best_months = excluded.best_months, season_note = excluded.season_note, travel_character = excluded.travel_character,
         practical_note = excluded.practical_note, getting_there = excluded.getting_there, stay_area = excluded.stay_area,
         nearest_airport_iata = excluded.nearest_airport_iata, nearest_rail_station = excluded.nearest_rail_station, scene = excluded.scene,
-        updated_at = now()`,
+        extra = excluded.extra, region = excluded.region, lat = excluded.lat, lng = excluded.lng, updated_at = now()`,
       [
         d.id, d.name, d.region, d.country, d.countryCode, d.lat, d.lng, d.timezone, d.localCurrency, d.tagline, d.story,
         d.moods, d.styles, d.companions, d.experienceTags, JSON.stringify(d.dailyCost), d.suggestedDays[0], d.suggestedDays[1],
         d.bestMonths, d.seasonNote, d.travelCharacter, d.practicalNote, d.gettingThere, d.stayArea, d.nearestAirport ?? null,
-        d.nearestRail ?? null, d.scene,
+        d.nearestRail ?? null, d.scene, JSON.stringify(d.extra ?? {}),
       ],
     );
     for (const p of d.places) {
       await q.query(
         `insert into public.place (id, destination_id, name, category, description, lat, lng, country_code, source, status,
-           avg_duration_min, est_cost_inr, best_time, hidden_gem, scene)
-         values (md5($1)::uuid, $2, $3, $4, $5, $6, $7, $8, 'curated', 'approved', $9, $10, $11, $12, $13)
+           avg_duration_min, est_cost_inr, best_time, hidden_gem, scene, photo_title)
+         values (md5($1)::uuid, $2, $3, $4, $5, $6, $7, $8, 'curated', 'approved', $9, $10, $11, $12, $13, $14)
          on conflict (id) do update set name = excluded.name, category = excluded.category, description = excluded.description,
            lat = excluded.lat, lng = excluded.lng, avg_duration_min = excluded.avg_duration_min, est_cost_inr = excluded.est_cost_inr,
-           best_time = excluded.best_time, hidden_gem = excluded.hidden_gem, scene = excluded.scene, updated_at = now()`,
+           best_time = excluded.best_time, hidden_gem = excluded.hidden_gem, scene = excluded.scene,
+           photo_title = excluded.photo_title,
+           photo_checked_at = case when place.photo_title is distinct from excluded.photo_title then null else place.photo_checked_at end,
+           updated_at = now()`,
         [
           `place:${d.id}:${p.key}`, d.id, p.name, p.category, p.description, p.lat, p.lng, d.countryCode,
-          p.durationMin, p.costInr, p.bestTime, p.hiddenGem ?? false, p.scene ?? null,
+          p.durationMin, p.costInr, p.bestTime, p.hiddenGem ?? false, p.scene ?? null, p.photo ?? null,
         ],
       );
     }
@@ -76,6 +86,12 @@ export async function seedDatabase(q: Queryable, opts: { demo?: boolean } = { de
       [p.id, p.description, p.max],
     );
   }
+
+  await q.query(
+    `insert into public.app_setting (key, value, updated_at) values ('catalogue_version', $1::jsonb, now())
+     on conflict (key) do update set value = excluded.value, updated_at = now()`,
+    [JSON.stringify(CATALOGUE_VERSION)],
+  );
 
   if (opts.demo) await seedDemoData(q);
 }

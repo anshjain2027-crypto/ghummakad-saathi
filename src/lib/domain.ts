@@ -35,10 +35,20 @@ export const PACES = [
 export type PaceId = (typeof PACES)[number]["id"];
 
 export const DURATIONS = [
-  { id: "3-4", label: "3–4 days", days: 4 },
-  { id: "5-6", label: "5–6 days", days: 5 },
-  { id: "7+", label: "7+ days", days: 7 },
+  { id: "1", label: "Day trip", days: 1, min: 1, max: 1 },
+  { id: "2", label: "Weekend · 2D/1N", days: 2, min: 2, max: 2 },
+  { id: "3-4", label: "3–4 days", days: 3, min: 3, max: 4 },
+  { id: "5-6", label: "5–6 days", days: 5, min: 5, max: 6 },
+  { id: "7+", label: "7+ days", days: 7, min: 7, max: 30 },
 ] as const;
+
+/** Quick budget presets for the whole group (INR). */
+export const BUDGET_PRESETS = [5000, 10000, 25000, 50000, 100000] as const;
+
+export function tripLabel(days: number): string {
+  if (days <= 1) return "Day trip";
+  return `${days}D/${days - 1}N`;
+}
 
 export const INTERESTS = [
   "Hidden gems",

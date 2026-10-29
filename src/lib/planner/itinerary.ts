@@ -3,7 +3,9 @@ import { PACES, STYLES } from "@/lib/domain";
 import type { Preferences, Stop, TripPlan } from "./schema";
 import { TripPlanSchema } from "./schema";
 import type { CuratedPlace, Destination } from "./types";
-import { estimateTrip } from "./matching";
+import { destinationTravelOptions, estimateTrip } from "./matching";
+import { findCity } from "@/lib/geo";
+import { tripLabel } from "@/lib/domain";
 
 /**
  * A skeleton is the only thing an AI provider is allowed to decide: which
@@ -72,12 +74,20 @@ export function mockSkeleton(dest: Destination, places: CuratedPlace[], p: Prefe
     return far(da) - far(db) || Number(a.hiddenGem) - Number(b.hiddenGem) || da - db || a.id.localeCompare(b.id);
   });
 
+  const est = estimateTrip(dest, p);
+  const t = est.travel;
+  // Overnight bus/train: you arrive at dawn with a full day ahead. Short hops (≤4 h) arrive by late morning.
+  const arriveEarly = !!t && (t.overnight || t.hours[0] <= 4);
+  const short = p.days <= 2;
   const used = new Set<string>();
   const days: DaySkeleton[] = [];
   for (let day = 1; day <= p.days; day++) {
     const isArrival = day === 1;
-    const isDeparture = day === p.days && p.days > 2;
-    const capacity = isArrival || isDeparture ? Math.max(1, rules.stopsPerDay - 2) : rules.stopsPerDay;
+    const isDeparture = day === p.days && (p.days > 2 || short);
+    let capacity: number = rules.stopsPerDay;
+    if (p.days === 1) capacity = Math.max(2, rules.stopsPerDay - 1);
+    else if (isArrival) capacity = arriveEarly ? rules.stopsPerDay - (short ? 0 : 1) : Math.max(1, rules.stopsPerDay - 2);
+    else if (isDeparture) capacity = Math.max(2, rules.stopsPerDay - (short ? 1 : 2));
     const anchor = ordered.find((pl) => !used.has(pl.id));
     const slots: Record<(typeof SLOT_ORDER)[number], string[]> = { morning: [], afternoon: [], evening: [] };
     let minutes = 0;
@@ -95,13 +105,14 @@ export function mockSkeleton(dest: Destination, places: CuratedPlace[], p: Prefe
         minutes += pl.durationMin;
       }
     }
-    if (isArrival) picked = picked.filter((pl) => pl.bestTime !== "morning" || pl.durationMin <= 120);
+    if (isArrival && !arriveEarly && p.days > 1) picked = picked.filter((pl) => pl.bestTime !== "morning" || pl.durationMin <= 120);
 
     for (const pl of picked) {
       used.add(pl.id);
       const pref = pl.bestTime === "any" ? null : pl.bestTime;
       let slot: (typeof SLOT_ORDER)[number] = pref ?? "afternoon";
-      if (isArrival && slot === "morning") slot = "afternoon";
+      if (isArrival && !arriveEarly && p.days > 1 && slot === "morning") slot = "afternoon";
+      if (isDeparture && p.days > 1 && slot === "evening") slot = "afternoon";
       const limit = slot === "evening" ? 2 : 3;
       if (slots[slot].length >= limit) slot = SLOT_ORDER.find((s) => slots[s].length < (s === "evening" ? 2 : 3)) ?? slot;
       slots[slot].push(pl.id);
@@ -114,21 +125,36 @@ export function mockSkeleton(dest: Destination, places: CuratedPlace[], p: Prefe
       day,
       theme: restDay
         ? "A slow day to wander"
-        : isArrival
-          ? `Arrive and settle into ${dest.name}`
-          : isDeparture
-            ? "One last easy morning"
-            : themeFor(picked),
+        : p.days === 1
+          ? `A full day in ${dest.name}`
+          : isArrival
+            ? arriveEarly
+              ? `Arrive early and dive into ${dest.name}`
+              : `Arrive and settle into ${dest.name}`
+            : isDeparture
+              ? short
+                ? `${themeFor(picked)}, then head home`
+                : "One last easy morning"
+              : themeFor(picked),
       morning: slots.morning,
       afternoon: slots.afternoon,
       evening: slots.evening,
       foodPlaceId: food?.id ?? null,
       hiddenGemPlaceId: gem?.id ?? null,
-      practicalNote: isArrival
-        ? dest.gettingThere
+      practicalNote: (isArrival
+        ? t
+          ? p.days === 1
+            ? `Leave early: about ${Math.round(t.hours[0])}–${Math.round(t.hours[1])} h each way by ${t.label.toLowerCase()}. ${dest.practicalNote}`
+            : t.overnight
+              ? `Take the overnight ${t.label.toLowerCase()} the night before (about ${Math.round(t.hours[0])} h) and arrive at dawn. ${dest.extra?.access?.startPoint ? `Start point: ${dest.extra.access.startPoint}.` : ""}`
+              : `About ${Math.round(t.hours[0])}–${Math.round(t.hours[1])} h by ${t.label.toLowerCase()}. ${dest.gettingThere}`
+          : dest.gettingThere
         : isDeparture
-          ? "Keep the afternoon free for the journey home; mountain and coastal roads can be slow."
-          : dest.practicalNote,
+          ? t?.overnight
+            ? `Catch the overnight ${t.label.toLowerCase()} home this evening — you're back by morning.`
+            : "Keep the late afternoon free for the journey home; mountain and coastal roads can be slow."
+          : dest.practicalNote
+      ).slice(0, 300),
       restNote: restDay
         ? "Nothing scheduled on purpose. Revisit a favourite spot, rest, or ask your host what is happening locally."
         : p.pace === "slow" && day % 3 === 0
@@ -140,7 +166,7 @@ export function mockSkeleton(dest: Destination, places: CuratedPlace[], p: Prefe
   const style = STYLES.find((s) => s.id === p.style)?.label ?? p.style;
   const pace = PACES.find((x) => x.id === p.pace)?.label ?? p.pace;
   return {
-    title: `${dest.name} · ${p.days} days · ${style}`,
+    title: `${dest.name} · ${tripLabel(p.days)} · ${style}`,
     summary: `${dest.tagline} A ${pace.toLowerCase()}-paced ${p.days}-day plan built around ${dest.experienceTags.slice(0, 3).join(", ").toLowerCase()}.`,
     whyThisFits: [
       `It matches the ${p.mood === "surprise" ? "open-minded" : p.mood} mood you chose, with ${dest.travelCharacter.toLowerCase()} days.`,
@@ -253,6 +279,13 @@ export function resolvePlan(skel: PlanSkeleton, ctx: ResolveContext): TripPlan {
     ].slice(0, 8),
     sources: [{ label: "Ghummakad Saathi editorial notes", url: null }],
     confidence: "illustrative",
+    tripLabel: tripLabel(ctx.prefs.days),
+    travelOptions: destinationTravelOptions(ctx.dest, findCity(ctx.prefs.originCityId) ?? findCity(ctx.prefs.origin), travellers, ctx.prefs.startDate ?? null)
+      .slice(0, 4)
+      .map((o) => ({ mode: o.mode, label: o.label, hours: o.hours, fareInr: o.fareInr, perVehicle: o.perVehicle, legs: o.legs, note: o.note, overnight: o.overnight, tags: o.tags, links: o.links })),
+    chosenTravel: estimate.travel?.mode ?? null,
+    packList: ctx.dest.extra?.packList?.slice(0, 10),
+    trek: ctx.dest.extra?.trek ?? null,
   };
   return TripPlanSchema.parse(plan);
 }

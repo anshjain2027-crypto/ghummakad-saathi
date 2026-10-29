@@ -4,10 +4,12 @@ import { asService, one } from "@/lib/db";
 import { DISPLAY_CURRENCIES } from "@/lib/geo";
 import { Container, PageHeading } from "@/components/ui";
 import { ProfileForm } from "./profile-form";
+import { PasswordForm } from "./password-form";
 
 export const metadata: Metadata = { title: "Profile" };
 
-export default async function Profile() {
+export default async function Profile({ searchParams }: { searchParams: Promise<{ reset?: string }> }) {
+  const sp = await searchParams;
   const user = await requireUser("/profile");
   const p = await asService((q) =>
     one<{ display_name: string; display_currency: string; timezone: string; marketing_consent: boolean }>(
@@ -23,6 +25,7 @@ export default async function Profile() {
         initial={{ displayName: p?.display_name ?? user.displayName, currency: p?.display_currency ?? "INR", timezone: p?.timezone ?? "Asia/Kolkata", marketing: p?.marketing_consent ?? false }}
         currencies={[...DISPLAY_CURRENCIES]}
       />
+      <PasswordForm highlight={sp.reset === "1"} />
       <section className="mt-12 rounded-[var(--radius-card)] border border-line bg-surface p-6">
         <h2 className="font-serif text-[22px]">Your data</h2>
         <p className="mt-2 text-[15px] text-ink-soft">

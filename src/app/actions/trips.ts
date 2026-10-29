@@ -61,7 +61,7 @@ export async function generateTripAction(tripId: string): Promise<TripActionResu
 
 const EditSchema = z.object({
   destinationId: z.string().min(2).max(60),
-  days: z.coerce.number().int().min(2).max(14),
+  days: z.coerce.number().int().min(1).max(14),
   travellers: z.coerce.number().int().min(1).max(30),
   style: z.enum(STYLES.map((s) => s.id) as [string, ...string[]]),
   pace: z.enum(PACES.map((p) => p.id) as [string, ...string[]]),

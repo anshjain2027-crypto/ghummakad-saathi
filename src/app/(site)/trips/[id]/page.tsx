@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { after } from "next/server";
+import { refreshPhotos } from "@/lib/photos";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/auth";
@@ -21,6 +23,7 @@ import { BookingModules } from "./booking-modules";
 import { EntitlementBanner } from "./entitlement-banner";
 import { PrintButton } from "./print-button";
 import { WebNotes } from "@/components/web-notes";
+import { TravelOptions } from "@/components/travel-options";
 
 export const metadata: Metadata = { title: "Your trip", robots: { index: false } };
 
@@ -52,6 +55,7 @@ export default async function TripHub({ params, searchParams }: { params: Promis
 
   const plan = current.plan;
   const prefs = trip.preferences;
+  after(() => refreshPhotos({ destinationId: plan.destinationId, limit: 10 }));
   const [dest, places, destinations] = await Promise.all([getDestination(plan.destinationId), curatedPlaces(plan.destinationId), listDestinations()]);
   if (!dest) notFound();
   const booking = bookingOptions(dest, prefs);
@@ -107,7 +111,35 @@ export default async function TripHub({ params, searchParams }: { params: Promis
             </ul>
           </section>
 
-          <Itinerary tripId={trip.id} plan={plan} editable={editable} swaps={swaps} currency={cur} center={{ lat: dest.lat, lng: dest.lng }} />
+          <Itinerary tripId={trip.id} plan={plan} editable={editable} swaps={swaps} currency={cur} center={{ lat: dest.lat, lng: dest.lng }} photos={Object.fromEntries(places.filter((p) => p.imageUrl).map((p) => [p.id, { url: p.imageUrl!, credit: p.imageCredit ?? null, page: p.imagePageUrl ?? null }]))} />
+
+          {plan.travelOptions?.length ? <TravelOptions options={plan.travelOptions} from={trip.preferences.origin} to={dest.name} chosen={plan.chosenTravel ?? null} travellers={trip.preferences.travellers} /> : null}
+
+          {plan.trek || plan.packList?.length ? (
+            <section aria-labelledby="pack" className="grid gap-6 sm:grid-cols-2">
+              {plan.trek ? (
+                <div className="rounded-[var(--radius-card)] border border-line bg-surface p-5">
+                  <h2 id="pack" className="font-serif text-[21px]">The trek</h2>
+                  <dl className="mt-3 grid grid-cols-3 gap-3 text-[14px]">
+                    <div><dt className="text-ink-soft">Distance</dt><dd className="font-semibold">{plan.trek.km} km</dd></div>
+                    <div><dt className="text-ink-soft">Grade</dt><dd className="font-semibold capitalize">{plan.trek.difficulty}</dd></div>
+                    {plan.trek.maxAltM ? <div><dt className="text-ink-soft">Top</dt><dd className="font-semibold">{plan.trek.maxAltM.toLocaleString("en-IN")} m</dd></div> : null}
+                  </dl>
+                  {plan.trek.note ? <p className="mt-2 text-[14px] text-ink-soft">{plan.trek.note}</p> : null}
+                </div>
+              ) : null}
+              {plan.packList?.length ? (
+                <div className="rounded-[var(--radius-card)] border border-line bg-surface p-5">
+                  <p className="font-serif text-[21px]">What to pack</p>
+                  <ul className="mt-3 space-y-1.5 text-[15px]">
+                    {plan.packList.map((x) => (
+                      <li key={x} className="flex gap-2"><span aria-hidden>✓</span>{x}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+            </section>
+          ) : null}
 
           <section aria-labelledby="practical" className="grid gap-6 sm:grid-cols-2">
             <h2 id="practical" className="sr-only">

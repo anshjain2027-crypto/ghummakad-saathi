@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { after } from "next/server";
+import { refreshPhotos } from "@/lib/photos";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
@@ -18,6 +20,7 @@ export default async function DestinationPage({ params }: { params: Promise<{ sl
   const { slug } = await params;
   const d = await getDestination(slug);
   if (!d) notFound();
+  after(() => refreshPhotos({ destinationId: d.id, limit: 10 }));
   const [places, user] = await Promise.all([curatedPlaces(d.id), getCurrentUser()]);
   const months = d.bestMonths.map((m) => new Date(2026, m - 1, 1).toLocaleString("en-IN", { month: "short" })).join(", ");
   const jsonLd = {
@@ -32,7 +35,7 @@ export default async function DestinationPage({ params }: { params: Promise<{ sl
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }} />
       <section className="on-dark relative isolate overflow-hidden bg-forest-deep text-cream">
-        <Scene kind={d.scene} seed={d.id} label={`${d.name} landscape`} photoUrl={d.heroImageUrl} className="absolute inset-0 -z-10" priority />
+        <Scene kind={d.scene} seed={d.id} label={`${d.name} landscape`} photoUrl={d.heroImageUrl} credit={d.imageCredit} className="absolute inset-0 -z-10" priority />
         <div className="absolute inset-0 -z-10 bg-gradient-to-t from-[#0f2a23]/90 via-[#0f2a23]/30 to-transparent" />
         <Container className="flex min-h-[56svh] flex-col justify-end pb-12 pt-24">
           <p className="text-cream/85">

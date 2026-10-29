@@ -37,3 +37,10 @@ create table if not exists auth.demo_otp (
   attempts int not null default 0,
   expires_at timestamptz not null
 );
+
+-- Demo-mode passwords (scrypt hashes). Production uses Supabase Auth.
+create table if not exists auth.demo_password (
+  email text primary key,
+  password_hash text not null,
+  updated_at timestamptz not null default now()
+);

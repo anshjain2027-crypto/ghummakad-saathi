@@ -13,11 +13,36 @@ const MODE: Record<Stop["travelMode"], string> = { walk: "Walk", drive: "Drive",
 const COST: Record<Stop["costCategory"], string> = { free: "Free", low: "Low cost", mid: "Moderate", high: "Higher cost" };
 
 type Swaps = Record<number, { id: string; name: string; category: string }[]>;
+export type PhotoMap = Record<string, { url: string; credit: string | null; page: string | null }>;
 
-export function Itinerary({ tripId, plan, editable, swaps, currency, center }: { tripId: string; plan: TripPlan; editable: boolean; swaps: Swaps; currency: string; center: { lat: number; lng: number } }) {
+const SLOT_START: Record<"morning" | "afternoon" | "evening", number> = { morning: 7.5 * 60, afternoon: 13 * 60, evening: 17 * 60 };
+const clock = (mins: number) => {
+  const h = Math.floor(mins / 60) % 24;
+  const m = Math.round((mins % 60) / 15) * 15;
+  const hh = h % 12 === 0 ? 12 : h % 12;
+  return `${hh}:${String(m === 60 ? 0 : m).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`;
+};
+
+/** Approximate start times: each slot starts at a fixed hour and stops follow with ~20 min between them. */
+function timesFor(day: TripPlan["days"][number]): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const slot of ["morning", "afternoon", "evening"] as const) {
+    let t = SLOT_START[slot];
+    // Long morning outings (treks, safaris, sunrises) start earlier.
+    if (slot === "morning" && day.morning[0] && day.morning[0].durationMin >= 240) t = 6 * 60;
+    for (const s of day[slot]) {
+      out[s.placeId] = clock(t);
+      t += s.durationMin + 20;
+    }
+  }
+  return out;
+}
+
+export function Itinerary({ tripId, plan, editable, swaps, currency, center, photos = {} }: { tripId: string; plan: TripPlan; editable: boolean; swaps: Swaps; currency: string; center: { lat: number; lng: number }; photos?: PhotoMap }) {
   const [active, setActive] = useState(1);
   const day = plan.days.find((d) => d.day === active) ?? plan.days[0];
   const stops = useMemo(() => [...day.morning, ...day.afternoon, ...day.evening], [day]);
+  const times = useMemo(() => timesFor(day), [day]);
 
   const markers = stops.map((s, i) => ({ id: s.placeId, lat: s.lat, lng: s.lng, label: `${i + 1}. ${s.name}`, kind: "stop" as const, order: i + 1 }));
 
@@ -73,7 +98,7 @@ export function Itinerary({ tripId, plan, editable, swaps, currency, center }: {
                   <p className="text-[14px] font-semibold capitalize text-forest">{slot}</p>
                   <ul className="mt-3 space-y-3">
                     {day[slot].map((s) => (
-                      <StopCard key={s.placeId} stop={s} index={stops.indexOf(s) + 1} tripId={tripId} day={day.day} editable={editable} swaps={swaps[day.day] ?? []} />
+                      <StopCard key={s.placeId} stop={s} index={stops.indexOf(s) + 1} tripId={tripId} day={day.day} editable={editable} swaps={swaps[day.day] ?? []} time={times[s.placeId]} photo={photos[s.placeId]} />
                     ))}
                   </ul>
                 </li>
@@ -124,16 +149,24 @@ export function Itinerary({ tripId, plan, editable, swaps, currency, center }: {
   );
 }
 
-function StopCard({ stop, index, tripId, day, editable, swaps }: { stop: Stop; index: number; tripId: string; day: number; editable: boolean; swaps: { id: string; name: string }[] }) {
+function StopCard({ stop, index, tripId, day, editable, swaps, time, photo }: { stop: Stop; index: number; tripId: string; day: number; editable: boolean; swaps: { id: string; name: string }[]; time?: string; photo?: PhotoMap[string] }) {
   const [open, setOpen] = useState(false);
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
   return (
     <li className="overflow-hidden rounded-[var(--radius-card)] border border-line bg-surface">
       <div className="flex gap-4 p-3">
-        <Scene kind={stop.scene ?? "forest"} seed={stop.placeId} label="" className="h-24 w-24 shrink-0 rounded-[12px] sm:h-28 sm:w-32" />
+        <div className="shrink-0">
+          <Scene kind={stop.scene ?? "forest"} seed={stop.placeId} label={photo ? `Photo of ${stop.name}` : ""} photoUrl={photo?.url ?? null} className="h-24 w-24 rounded-[12px] sm:h-28 sm:w-32" />
+          {photo?.credit ? (
+            <a href={photo.page ?? photo.url} target="_blank" rel="noopener noreferrer" className="mt-1 block max-w-24 truncate text-[10px] text-ink-soft underline sm:max-w-32" title={photo.credit}>
+              {photo.credit}
+            </a>
+          ) : null}
+        </div>
         <div className="min-w-0 flex-1 py-1">
           <p className="text-[13px] text-ink-soft">
+            {time ? <strong className="mr-1 text-forest">{time}</strong> : null}
             {index}. {PLACE_CATEGORIES.find((c) => c.id === stop.category)?.label ?? stop.category}
             {stop.hiddenGem ? " · hidden gem" : ""}
           </p>

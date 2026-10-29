@@ -3,6 +3,9 @@ import { config } from "@/lib/config";
 import { asService } from "@/lib/db";
 import { getDodoPayment } from "@/lib/payments/dodo";
 import { fulfillOrder, markOrderStatus } from "@/lib/payments/orders";
+import { refreshPhotos } from "@/lib/photos";
+
+export const maxDuration = 300;
 
 /**
  * Daily housekeeping (Vercel Cron, see vercel.json):
@@ -44,5 +47,6 @@ export async function GET(request: NextRequest) {
     result.prunedBuckets = (await q.query(`delete from public.rate_limit_bucket where window_start < now() - interval '2 days' returning key`)).length;
     result.staleGoogleCoords = (await q.query(`select id from public.place where coords_source = 'google' and coords_cached_at < now() - interval '30 days'`)).length;
   });
-  return NextResponse.json({ ok: true, ...result });
+  const photos = await refreshPhotos({ limit: 40 });
+  return NextResponse.json({ ok: true, ...result, photos });
 }

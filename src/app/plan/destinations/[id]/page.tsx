@@ -1,10 +1,14 @@
 import type { Metadata } from "next";
+import { after } from "next/server";
+import { refreshPhotos } from "@/lib/photos";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { curatedPlaces, getDestination } from "@/lib/data/catalog";
 import { currentDraft, draftMatches } from "@/lib/data/drafts";
-import { scoreDestination } from "@/lib/planner/matching";
+import { destinationTravelOptions, scoreDestination } from "@/lib/planner/matching";
+import { findCity } from "@/lib/geo";
+import { TravelOptions } from "@/components/travel-options";
 import { sponsoredFor } from "@/lib/sponsors";
 import { PLACE_CATEGORIES } from "@/lib/domain";
 import { priceFor } from "@/lib/pricing";
@@ -27,6 +31,7 @@ export default async function DestinationDetail({ params }: { params: Promise<{ 
   if (!dest) notFound();
   const user = await getCurrentUser();
   const draft = await currentDraft(user);
+  after(() => refreshPhotos({ destinationId: dest.id, limit: 10 }));
   const [places, stored, sponsored] = await Promise.all([
     curatedPlaces(dest.id),
     draft ? draftMatches(draft.id) : Promise.resolve([]),
@@ -39,10 +44,12 @@ export default async function DestinationDetail({ params }: { params: Promise<{ 
   const estimate = stored1?.estimate ?? (computed ? { ...computed.estimate, seasonCaveat: computed.seasonCaveat, suggestedDays: prefs!.days, closest: false } : null);
   const cur = prefs?.displayCurrency ?? "INR";
   const strip = ["nature", "food", "culture", "lesser_known", "experience", "viewpoint"]
-    .map((cat) => places.find((p) => p.category === cat))
+    .map((cat) => places.find((p) => p.category === cat && p.imageUrl) ?? places.find((p) => p.category === cat))
     .filter((p): p is NonNullable<typeof p> => !!p)
     .slice(0, 4);
   const price = prefs ? priceFor(prefs.travellers) : null;
+  const originCity = prefs ? (findCity(prefs.originCityId) ?? findCity(prefs.origin)) : findCity("delhi");
+  const travel = destinationTravelOptions(dest, originCity, prefs?.travellers ?? 2, prefs?.startDate ?? null);
 
   return (
     <>
@@ -94,7 +101,7 @@ export default async function DestinationDetail({ params }: { params: Promise<{ 
             <ul className="scroller -mx-4 mt-5 flex gap-4 overflow-x-auto px-4 pb-2 sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0">
               {strip.map((p) => (
                 <li key={p.id} className="w-[72vw] shrink-0 overflow-hidden rounded-[var(--radius-card)] border border-line bg-surface sm:w-auto">
-                  <Scene kind={p.scene ?? dest.scene} seed={p.id} label={p.name} className="aspect-[16/10]" />
+                  <Scene kind={p.scene ?? dest.scene} seed={p.id} label={p.name} photoUrl={p.imageUrl ?? null} credit={p.imageCredit ?? null} className="aspect-[16/10]" />
                   <div className="p-4">
                     <p className="text-[13px] font-medium text-forest">{PLACE_CATEGORIES.find((c) => c.id === p.category)?.label}</p>
                     <p className="font-serif text-[21px] leading-tight">{p.name}</p>
@@ -114,6 +121,8 @@ export default async function DestinationDetail({ params }: { params: Promise<{ 
             </div>
             <p className="text-[15px] text-ink-soft">{dest.gettingThere}</p>
           </section>
+
+          {travel.length && originCity ? <TravelOptions options={travel} from={originCity.name} to={dest.name} chosen={estimate?.travel?.mode ?? null} travellers={prefs?.travellers} /> : null}
         </div>
 
         <aside className="space-y-6 lg:sticky lg:top-6 lg:h-fit">

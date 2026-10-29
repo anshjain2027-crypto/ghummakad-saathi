@@ -37,7 +37,7 @@ export function EditPanel({ tripId, editable, tier, current, destinations }: { t
         <div className="grid grid-cols-2 gap-3">
           <label className="grid gap-1.5 text-[14px] font-medium">
             Days
-            <input name="days" type="number" min={2} max={14} defaultValue={current.days} className={inputClass} />
+            <input name="days" type="number" min={1} max={14} defaultValue={current.days} className={inputClass} />
           </label>
           <label className="grid gap-1.5 text-[14px] font-medium">
             Travellers

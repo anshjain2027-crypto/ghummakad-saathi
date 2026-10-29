@@ -15,8 +15,8 @@ export const PreferencesSchema = z.object({
   dateMode: z.enum(["dates", "month", "flexible"]).default("flexible"),
   startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   month: z.number().int().min(1).max(12).optional(),
-  days: z.number().int().min(2).max(14),
-  budgetInr: z.number().int().min(5_000).max(5_000_000),
+  days: z.number().int().min(1).max(14),
+  budgetInr: z.number().int().min(2_000).max(5_000_000),
   budgetIncludesTransport: z.boolean().default(true),
   displayCurrency: z.enum(DISPLAY_CURRENCIES_LIST).default("INR"),
   interests: z.array(z.string().max(40)).max(10).default([]),
@@ -81,5 +81,26 @@ export const TripPlanSchema = z.object({
   caveats: z.array(z.string()).max(8),
   sources: z.array(z.object({ label: z.string(), url: z.string().url().nullable() })).max(10),
   confidence: z.literal("illustrative"),
+  tripLabel: z.string().max(40).optional(),
+  travelOptions: z
+    .array(
+      z.object({
+        mode: z.enum(["flight", "train", "bus", "drive"]),
+        label: z.string(),
+        hours: z.tuple([z.number(), z.number()]),
+        fareInr: z.tuple([z.number(), z.number()]),
+        perVehicle: z.boolean(),
+        legs: z.array(z.object({ mode: z.string(), text: z.string() })),
+        note: z.string().nullable(),
+        overnight: z.boolean(),
+        tags: z.array(z.string()),
+        links: z.array(z.object({ label: z.string(), url: z.string() })),
+      }),
+    )
+    .max(4)
+    .optional(),
+  chosenTravel: z.enum(["flight", "train", "bus", "drive"]).nullable().optional(),
+  packList: z.array(z.string().max(80)).max(10).optional(),
+  trek: z.object({ km: z.number(), difficulty: z.string(), maxAltM: z.number().optional(), note: z.string().optional() }).nullable().optional(),
 });
 export type TripPlan = z.infer<typeof TripPlanSchema>;

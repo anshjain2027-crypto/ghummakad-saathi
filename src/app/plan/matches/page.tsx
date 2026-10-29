@@ -6,7 +6,8 @@ import { currentDraft, draftMatches } from "@/lib/data/drafts";
 import { listDestinations } from "@/lib/data/catalog";
 import { noMatchAdvice } from "@/lib/planner/matching";
 import { sponsoredFor } from "@/lib/sponsors";
-import { COMPANIONS, MOODS, STYLES } from "@/lib/domain";
+import { COMPANIONS, MOODS, STYLES, tripLabel } from "@/lib/domain";
+import { TravelSummary } from "@/components/travel-options";
 import { Scene } from "@/components/scene";
 import { Band } from "@/components/money";
 import { SponsoredSlot } from "@/components/sponsored";
@@ -36,7 +37,7 @@ export default async function MatchesPage() {
               {COMPANIONS.find((c) => c.id === prefs.companion)?.label} · {prefs.travellers}
             </Chip>
             <Chip>{STYLES.find((s) => s.id === prefs.style)?.label}</Chip>
-            <Chip tone="plain">{prefs.days} days</Chip>
+            <Chip tone="plain">{tripLabel(prefs.days)}</Chip>
             <Chip tone="plain">
               <Band band={[prefs.budgetInr, prefs.budgetInr]} currency={cur} /> total
             </Chip>
@@ -91,9 +92,10 @@ export default async function MatchesPage() {
                     </div>
                     <div>
                       <dt className="text-ink-soft">Suggested</dt>
-                      <dd className="font-semibold">{m.estimate.suggestedDays} days</dd>
+                      <dd className="font-semibold">{tripLabel(m.estimate.suggestedDays)}</dd>
                     </div>
                   </dl>
+                  <TravelSummary travel={m.estimate.travel} from={prefs.origin} />
                   {m.estimate.withinBudget === "stretch" ? <p className="mt-2 text-[13px] text-warning">A little over your budget — simpler stays bring it in.</p> : null}
                   {m.estimate.seasonCaveat ? <p className="mt-2 text-[13px] text-warning">Season note: {m.estimate.seasonCaveat}</p> : null}
                   <div className="mt-4 flex flex-wrap gap-2">
