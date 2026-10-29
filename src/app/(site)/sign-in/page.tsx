@@ -7,7 +7,7 @@ import { SignInForm } from "./sign-in-form";
 
 export const metadata: Metadata = { title: "Sign in" };
 
-export default async function SignInPage({ searchParams }: { searchParams: Promise<{ next?: string; reason?: string }> }) {
+export default async function SignInPage({ searchParams }: { searchParams: Promise<{ next?: string; reason?: string; error?: string }> }) {
   const sp = await searchParams;
   const next = safeNext(sp.next);
   if (await getCurrentUser()) redirect(next);
@@ -26,6 +26,11 @@ export default async function SignInPage({ searchParams }: { searchParams: Promi
       <div className="max-w-md">
         <h1 className="text-[40px] sm:text-[48px]">Welcome, explorer.</h1>
         <p className="mt-3 text-[17px] text-ink-soft">{reason}</p>
+        {sp.error === "link" ? (
+          <p role="alert" className="mt-6 rounded-[12px] border border-sand bg-sand-soft px-4 py-3 text-[15px]">
+            That sign-in link has expired or was opened in a different browser. Enter your email again and open the new link in this same browser.
+          </p>
+        ) : null}
         <div className="mt-8">
           <SignInForm next={next} demo={authMode === "demo"} />
         </div>
