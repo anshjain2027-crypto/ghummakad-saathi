@@ -19,7 +19,7 @@ const csp = [
   "frame-src 'self' https://www.google.com",
   "frame-ancestors 'none'",
   "base-uri 'self'",
-  "form-action 'self' https://test.dodopayments.com https://live.dodopayments.com https://checkout.dodopayments.com",
+  "form-action 'self' https://dodopayments.com https://*.dodopayments.com",
   "object-src 'none'",
   ...(isDev ? [] : ["upgrade-insecure-requests"]),
 ].join("; ");
