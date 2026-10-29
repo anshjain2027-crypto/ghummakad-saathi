@@ -105,7 +105,16 @@ export async function startEmailSignIn(email: string, next = "/"): Promise<Start
       email,
       options: { shouldCreateUser: true, emailRedirectTo: `${config.appUrl}/auth/callback?next=${encodeURIComponent(safeNext(next))}` },
     });
-    if (error) return { ok: false, error: "We couldn't send a code just now. Please try again in a minute." };
+    if (error) {
+      const limited = error.status === 429 || /rate limit/i.test(error.message ?? "");
+      console.error("supabase signInWithOtp failed", error.status, error.code ?? error.message);
+      return {
+        ok: false,
+        error: limited
+          ? "We've sent a sign-in email recently. Please check your inbox (and spam) for the latest one, or try again in a few minutes."
+          : "We couldn't send a code just now. Please try again in a minute.",
+      };
+    }
     return { ok: true };
   }
   // Demo mode: generate a code and show it on screen (no email is sent).
