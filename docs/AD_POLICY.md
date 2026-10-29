@@ -1,0 +1,3 @@
+# Advertising policy
+
+CPC only. Every placement shows "Sponsored", the advertiser name and why it's shown; never inside the trip questions or checkout; never mixed into organic matches or AI explanations. Sponsors cannot buy rankings, reviews or ratings. Billable = valid signed token, within 2 h, not a bot, not a repeat from the same visitor within 30 min, campaign active/in-window/within budget. Campaigns auto-pause at budget exhaustion. Disputes: admins reverse clicks in `/admin/campaigns` (spend restored, audited). Reject unlawful, misleading or fake-review promotions. Demo sponsor content is flagged `is_demo` and seeded only in demo mode.
