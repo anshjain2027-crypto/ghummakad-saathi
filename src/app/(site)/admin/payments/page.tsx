@@ -2,6 +2,9 @@ import { requireRole } from "@/lib/auth";
 import { asService } from "@/lib/db";
 import { formatInr } from "@/lib/geo";
 import { Chip } from "@/components/ui";
+import { config } from "@/lib/config";
+import { getDodoSetup } from "@/lib/payments/dodo";
+import { DodoSetupButton } from "./dodo-setup";
 
 export default async function AdminPayments() {
   await requireRole("admin", "/admin/payments");
@@ -14,12 +17,45 @@ export default async function AdminPayments() {
       `select provider, event_type, signature_valid, received_at, order_id from public.payment_event order by received_at desc limit 30`,
     ),
   }));
+  const setup = await getDodoSetup();
+  const items = [
+    { label: "API key", ok: Boolean(config.dodo) },
+    { label: "₹499 product", ok: Boolean(setup.products.standard) },
+    { label: "₹999 product", ok: Boolean(setup.products.group) },
+    { label: "₹500 upgrade product", ok: Boolean(setup.products.upgrade) },
+    { label: "Webhook", ok: Boolean(setup.webhookSecret) },
+  ];
+  const allDone = items.every((i) => i.ok);
   return (
     <div className="space-y-10">
       <div>
         <h1 className="text-[40px]">Payments</h1>
         <p className="mt-2 text-ink-soft">Every order and provider event. Access is granted only by verified confirmation; duplicate events are ignored.</p>
       </div>
+      <section className="rounded-[var(--radius-card)] border border-line bg-surface p-5">
+        <h2 className="font-serif text-[24px]">Dodo Payments {config.dodo ? (config.dodo.testMode ? "· Test Mode" : "· Live") : ""}</h2>
+        <ul className="mt-3 flex flex-wrap gap-2">
+          {items.map((i) => (
+            <li key={i.label}>
+              <Chip tone={i.ok ? "forest" : "terracotta"}>
+                {i.ok ? "✓" : "✗"} {i.label}
+              </Chip>
+            </li>
+          ))}
+        </ul>
+        {config.dodo ? (
+          <>
+            <p className="mt-3 text-[14px] text-ink-soft">
+              One click creates the three products in INR (taxes included) and the webhook to {config.appUrl}/api/payments/webhook. Safe to press again — it never creates duplicates.
+            </p>
+            <DodoSetupButton done={allDone} />
+          </>
+        ) : (
+          <p className="mt-3 text-[14px] text-ink-soft">
+            Add <code>DODO_PAYMENTS_API_KEY</code> in Vercel → Settings → Environment Variables (mark it Sensitive), redeploy, then come back here.
+          </p>
+        )}
+      </section>
       <div className="overflow-x-auto rounded-[var(--radius-card)] border border-line bg-surface">
         <table className="w-full min-w-[820px] text-left text-[14px]">
           <thead className="border-b border-line text-ink-soft">

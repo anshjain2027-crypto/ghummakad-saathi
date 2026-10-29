@@ -130,7 +130,7 @@ export async function createOrder(args: {
   }
 
   // Dodo: one hosted checkout session per order; reuse while it is still open.
-  const productId = dodoProductFor(order.purpose, order.tier);
+  const productId = await dodoProductFor(order.purpose, order.tier);
   if (!productId) throw new PaymentError("config", "Payments are not fully set up yet (missing Dodo product). Please try again later.");
   const returnUrl = `${config.appUrl}/checkout/return?order=${order.id}`;
   const cancelUrl = `${config.appUrl}/checkout/return?order=${order.id}&cancelled=1`;
@@ -192,7 +192,7 @@ export async function fulfillOrder(
     // checkouts may present local currency to the buyer, so for Dodo we
     // verify the product we sold, and for demo payments the exact paise.
     if (order.provider === "dodo") {
-      const expected = dodoProductFor(order.purpose, order.tier);
+      const expected = await dodoProductFor(order.purpose, order.tier, q);
       if (!expected || evidence.productId !== expected) {
         await markOrder(q, orderId, "failed", "Product mismatch on provider payment");
         throw new PaymentError("mismatch", "Payment did not match this order.");

@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
   const raw = await request.text();
   let event;
   try {
-    event = verifyDodoWebhook(raw, request.headers);
+    event = await verifyDodoWebhook(raw, request.headers);
   } catch {
     return NextResponse.json({ error: "invalid signature" }, { status: 401 });
   }

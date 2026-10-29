@@ -173,3 +173,17 @@ export async function grantModeratorAction(_prev: AdminState, form: FormData): P
   });
   return done ? { ok: true, message: `${email} is now a moderator.` } : { error: "No account with that email yet — ask them to sign in once first." };
 }
+
+export type DodoSetupState = { ok?: boolean; error?: string; steps?: string[] };
+
+export async function runDodoSetupAction(_prev: DodoSetupState): Promise<DodoSetupState> {
+  const admin = await requireRole("admin");
+  const { config } = await import("@/lib/config");
+  const { runDodoSetup } = await import("@/lib/payments/dodo");
+  const result = await runDodoSetup(`${config.appUrl}/api/payments/webhook`);
+  await asService((q) =>
+    audit(q, admin.id, "payments.dodo_setup", "app_setting", null, { ok: result.ok, steps: result.steps, error: result.error ?? null }),
+  );
+  revalidatePath("/admin/payments");
+  return { ok: result.ok, error: result.error, steps: result.steps };
+}
