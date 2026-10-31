@@ -85,16 +85,16 @@ export const config = {
   dodo: env.DODO_PAYMENTS_API_KEY
     ? {
         apiKey: env.DODO_PAYMENTS_API_KEY,
-        webhookKey: env.DODO_PAYMENTS_WEBHOOK_KEY,
+        webhookKey: env.DODO_PAYMENTS_WEBHOOK_KEY?.startsWith("whsec_") ? env.DODO_PAYMENTS_WEBHOOK_KEY : undefined,
         testMode: env.DODO_PAYMENTS_ENVIRONMENT !== "live_mode",
         baseUrl:
           env.DODO_PAYMENTS_ENVIRONMENT === "live_mode"
             ? "https://live.dodopayments.com"
             : "https://test.dodopayments.com",
         products: {
-          standard: env.DODO_PRODUCT_STANDARD,
-          group: env.DODO_PRODUCT_GROUP,
-          upgrade: env.DODO_PRODUCT_UPGRADE,
+          standard: env.DODO_PRODUCT_STANDARD?.startsWith("pdt_") ? env.DODO_PRODUCT_STANDARD : undefined,
+          group: env.DODO_PRODUCT_GROUP?.startsWith("pdt_") ? env.DODO_PRODUCT_GROUP : undefined,
+          upgrade: env.DODO_PRODUCT_UPGRADE?.startsWith("pdt_") ? env.DODO_PRODUCT_UPGRADE : undefined,
         },
       }
     : undefined,
