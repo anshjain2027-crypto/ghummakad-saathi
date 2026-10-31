@@ -11,11 +11,11 @@ const supabase = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
  */
 const csp = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""} https://maps.googleapis.com https://maps.gstatic.com`,
+  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""} https://maps.googleapis.com https://maps.gstatic.com https://www.clarity.ms https://*.clarity.ms`,
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "img-src 'self' data: blob: https:",
   "font-src 'self' data: https://fonts.gstatic.com",
-  `connect-src 'self' https://maps.googleapis.com https://places.googleapis.com ${supabase} ${supabase.replace("https://", "wss://")}`.trim(),
+  `connect-src 'self' https://maps.googleapis.com https://places.googleapis.com ${supabase} ${supabase.replace("https://", "wss://")} https://*.clarity.ms https://c.bing.com`.trim(),
   "frame-src 'self' https://www.google.com",
   "frame-ancestors 'none'",
   "base-uri 'self'",
