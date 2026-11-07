@@ -1,11 +1,16 @@
 import type { MetadataRoute } from "next";
 import { SEED_DESTINATIONS } from "@/lib/seed";
+import { listPublishedPosts } from "@/lib/data/blog";
 
-export default function sitemap(): MetadataRoute.Sitemap {
+export const revalidate = 3600;
+
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = process.env.APP_URL ?? "http://localhost:3000";
-  const pages = ["", "/plan", "/pricing", "/terms", "/privacy", "/sponsored-disclosure", "/community-guidelines", "/refunds"];
+  const pages = ["", "/plan", "/blog", "/pricing", "/terms", "/privacy", "/sponsored-disclosure", "/community-guidelines", "/refunds"];
+  const posts = await listPublishedPosts(500);
   return [
-    ...pages.map((p) => ({ url: `${base}${p}`, changeFrequency: "weekly" as const, priority: p === "" ? 1 : 0.6 })),
+    ...pages.map((p) => ({ url: `${base}${p}`, changeFrequency: "weekly" as const, priority: p === "" ? 1 : p === "/blog" ? 0.8 : 0.6 })),
+    ...posts.map((p) => ({ url: `${base}/blog/${p.slug}`, lastModified: p.updatedAt, changeFrequency: "monthly" as const, priority: 0.8 })),
     ...SEED_DESTINATIONS.map((d) => ({ url: `${base}/destinations/${d.id}`, changeFrequency: "monthly" as const, priority: 0.7 })),
   ];
 }

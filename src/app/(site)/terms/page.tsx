@@ -14,7 +14,7 @@ export default function Terms() {
         <li>Links to third-party providers (for example Booking.com, KAYAK, Skyscanner, IRCTC). Bookings are contracts between you and that provider.</li>
       </ul>
       <h2>Prices and estimates</h2>
-      <p>Trip plans cost ₹499 for 1–4 travellers or ₹999 for 5+ travellers, inclusive of applicable taxes. Budgets, travel times and costs in plans are illustrative estimates, not quotes. We don&rsquo;t guarantee availability, prices, opening hours or road conditions — always check with the provider.</p>
+      <p>Trip plans cost ₹499 for 1–4 travellers or ₹999 for 5+ travellers when paying from India, or US$10 and US$19 respectively when paying from elsewhere, inclusive of applicable taxes. Budgets, travel times and costs in plans are illustrative estimates, not quotes. We don&rsquo;t guarantee availability, prices, opening hours or road conditions — always check with the provider.</p>
       <h2>Your 30-day editing window</h2>
       <p>The window starts at the moment your payment is confirmed and ends exactly 30 days (720 hours) later. During it you can change anything in that trip, including the destination. One payment covers one trip workspace. After the window, the plan remains viewable. Reasonable automated limits may slow very rapid AI requests to protect the service; they never cap the number of edits you can make in the window.</p>
       <h2>Community content</h2>

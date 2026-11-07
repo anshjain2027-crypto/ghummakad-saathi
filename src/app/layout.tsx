@@ -8,15 +8,25 @@ const CLARITY_ID = /^[a-z0-9]{6,20}$/i.test(process.env.NEXT_PUBLIC_CLARITY_ID ?
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.APP_URL ?? "http://localhost:3000"),
   title: {
-    default: "Ghummakad Saathi — plan a trip around how you want to feel",
-    template: "%s · Ghummakad Saathi",
+    default: "Ghummakad Saathi — Personalised India trip planner",
+    template: "%s · Ghummakad Saathi — India trip planner",
   },
   description:
-    "Tell us the mood, the people and the budget. We'll turn it into a personalised destination and a clear day-by-day travel plan in one place.",
+    "Plan your India trip in minutes. Tell us your mood, budget and dates and get matched destinations — Himalayan treks, Rajasthan forts, Kerala backwaters, Goa beaches — with a day-by-day itinerary, train, bus and flight options, and real costs. From $10 (₹499 in India).",
+  keywords: ["India trip planner", "India itinerary", "India travel planner", "plan a trip to India", "India travel guide", "weekend getaways India", "Himalaya treks", "Rajasthan itinerary", "Kerala itinerary"],
+  applicationName: "Ghummakad Saathi",
+  alternates: { canonical: "/" },
   openGraph: {
-    title: "Ghummakad Saathi",
-    description: "Don't search for a destination. Start with how you want to feel.",
+    title: "Ghummakad Saathi — Personalised India trip planner",
+    description: "Tell us how you want your India trip to feel. Get matched destinations and a day-by-day plan with real travel options and costs.",
     type: "website",
+    siteName: "Ghummakad Saathi",
+    locale: "en_IN",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Ghummakad Saathi — Personalised India trip planner",
+    description: "Matched destinations and a day-by-day India itinerary with real travel options and costs.",
   },
 };
 

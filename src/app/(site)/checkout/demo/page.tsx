@@ -4,7 +4,7 @@ import { requireUser } from "@/lib/auth";
 import { getOrderForUser } from "@/lib/payments/orders";
 import { demoGatewayAction } from "@/app/actions/checkout";
 import { Button, Container, Notice } from "@/components/ui";
-import { formatInr } from "@/lib/geo";
+import { formatPrice } from "@/lib/pricing";
 
 export const metadata: Metadata = { title: "Demo checkout", robots: { index: false } };
 
@@ -26,7 +26,7 @@ export default async function DemoCheckout({ searchParams }: { searchParams: Pro
     <Container narrow className="py-12">
       <div className="mx-auto max-w-md rounded-[var(--radius-card)] border-2 border-dashed border-line-strong bg-surface p-6">
         <p className="text-[13px] font-semibold text-warning">Demo payment gateway</p>
-        <h1 className="mt-1 text-[32px]">Pay {formatInr(order.amountPaise / 100)}</h1>
+        <h1 className="mt-1 text-[32px]">Pay {formatPrice(order.amountPaise, order.currency)}</h1>
         <p className="mt-1 text-ink-soft">
           {PURPOSE[order.purpose]} · {order.tier === "group" ? "5+ travellers" : "1–4 travellers"} · inclusive of applicable taxes
         </p>
@@ -38,7 +38,7 @@ export default async function DemoCheckout({ searchParams }: { searchParams: Pro
         <div className="mt-6 grid gap-3">
           <form action={act("success")}>
             <Button type="submit" className="w-full">
-              Pay {formatInr(order.amountPaise / 100)} (test success)
+              Pay {formatPrice(order.amountPaise, order.currency)} (test success)
             </Button>
           </form>
           <form action={act("delayed")}>

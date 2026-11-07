@@ -12,6 +12,7 @@ import { TravelOptions } from "@/components/travel-options";
 import { sponsoredFor } from "@/lib/sponsors";
 import { PLACE_CATEGORIES } from "@/lib/domain";
 import { priceFor } from "@/lib/pricing";
+import { payCurrency } from "@/lib/pay-currency";
 import { chooseDestinationAction } from "@/app/actions/planner";
 import { Scene } from "@/components/scene";
 import { Band } from "@/components/money";
@@ -47,7 +48,7 @@ export default async function DestinationDetail({ params }: { params: Promise<{ 
     .map((cat) => places.find((p) => p.category === cat && p.imageUrl) ?? places.find((p) => p.category === cat))
     .filter((p): p is NonNullable<typeof p> => !!p)
     .slice(0, 4);
-  const price = prefs ? priceFor(prefs.travellers) : null;
+  const price = prefs ? priceFor(prefs.travellers, await payCurrency()) : null;
   const originCity = prefs ? (findCity(prefs.originCityId) ?? findCity(prefs.origin)) : findCity("delhi");
   const travel = destinationTravelOptions(dest, originCity, prefs?.travellers ?? 2, prefs?.startDate ?? null);
 
@@ -172,7 +173,7 @@ export default async function DestinationDetail({ params }: { params: Promise<{ 
             <ul className="mt-3 space-y-1.5 text-[15px]">
               <li>Free: this overview, why it fits, sample places and an estimate.</li>
               <li>
-                Full plan{price ? ` (₹${price.amountInr} total)` : ""}: a {prefs?.days ?? dest.suggestedDaysMin}-day itinerary with routes, food, hidden gems, daily budgets and booking links — editable for 30 days.
+                Full plan{price ? ` (${price.label} total)` : ""}: a {prefs?.days ?? dest.suggestedDaysMin}-day itinerary with routes, food, hidden gems, daily budgets and booking links — editable for 30 days.
               </li>
             </ul>
             <form action={chooseDestinationAction.bind(null, dest.id)} className="mt-5">

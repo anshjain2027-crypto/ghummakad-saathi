@@ -2,7 +2,7 @@ import "server-only";
 import { Webhook } from "standardwebhooks";
 import { config } from "@/lib/config";
 import { asService, one, type Queryable } from "@/lib/db";
-import type { Tier } from "@/lib/pricing";
+import type { PayCurrency, Tier } from "@/lib/pricing";
 
 /**
  * Dodo Payments (merchant of record) — hosted checkout.
@@ -19,8 +19,9 @@ export type DodoPurpose = "trip_purchase" | "tier_upgrade" | "renewal";
  * one-click admin setup, which stores them in app_setting (service-role only;
  * RLS has no policies on that table, so no browser client can read it).
  */
+export type ProductSlot = "standard" | "group" | "upgrade" | "standard_usd" | "group_usd" | "upgrade_usd";
 export type DodoSetup = {
-  products: { standard?: string; group?: string; upgrade?: string };
+  products: Partial<Record<ProductSlot, string>>;
   webhookId?: string;
   webhookSecret?: string;
   webhookUrl?: string;
@@ -44,6 +45,7 @@ export async function getDodoSetup(q?: Queryable): Promise<DodoSetup> {
   return {
     ...stored,
     products: {
+      ...stored.products,
       standard: envP.standard || stored.products.standard,
       group: envP.group || stored.products.group,
       upgrade: envP.upgrade || stored.products.upgrade,
@@ -52,11 +54,11 @@ export async function getDodoSetup(q?: Queryable): Promise<DodoSetup> {
   };
 }
 
-export async function dodoProductFor(purpose: DodoPurpose, tier: Tier, q?: Queryable): Promise<string | undefined> {
+export async function dodoProductFor(purpose: DodoPurpose, tier: Tier, currency: PayCurrency = "INR", q?: Queryable): Promise<string | undefined> {
   if (!config.dodo) return undefined;
   const p = (await getDodoSetup(q)).products;
-  if (purpose === "tier_upgrade") return p.upgrade;
-  return tier === "group" ? p.group : p.standard;
+  const base = purpose === "tier_upgrade" ? "upgrade" : tier === "group" ? "group" : "standard";
+  return p[(currency === "USD" ? `${base}_usd` : base) as ProductSlot];
 }
 
 async function dodoFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -141,6 +143,9 @@ const PRODUCT_SPECS = [
   { slot: "standard", name: "Ghummakad Saathi Trip Plan (1-4 travellers)", paise: 49900, description: "One personalised trip plan for 1-4 travellers with 30 days of unlimited edits." },
   { slot: "group", name: "Ghummakad Saathi Trip Plan (5+ travellers)", paise: 99900, description: "One personalised trip plan for 5 or more travellers with 30 days of unlimited edits." },
   { slot: "upgrade", name: "Ghummakad Saathi Group Upgrade (4 to 5+ travellers)", paise: 50000, description: "Upgrade an existing 1-4 traveller trip plan to 5+ travellers." },
+  { slot: "standard_usd", name: "Ghummakad Saathi India Trip Plan (1-4 travellers) - International", paise: 1000, currency: "USD", description: "One personalised India trip plan for 1-4 travellers with 30 days of unlimited edits." },
+  { slot: "group_usd", name: "Ghummakad Saathi India Trip Plan (5+ travellers) - International", paise: 1900, currency: "USD", description: "One personalised India trip plan for 5 or more travellers with 30 days of unlimited edits." },
+  { slot: "upgrade_usd", name: "Ghummakad Saathi Group Upgrade (4 to 5+) - International", paise: 900, currency: "USD", description: "Upgrade an existing 1-4 traveller trip plan to 5+ travellers." },
 ] as const;
 
 export const DODO_WEBHOOK_EVENTS = ["payment.succeeded", "payment.failed", "payment.cancelled", "payment.processing"];
@@ -154,7 +159,7 @@ export async function runDodoSetup(webhookUrl: string): Promise<DodoSetupResult>
   const envP = config.dodo.products;
   try {
     for (const spec of PRODUCT_SPECS) {
-      if (envP[spec.slot]) {
+      if (spec.slot in envP && envP[spec.slot as "standard" | "group" | "upgrade"]) {
         steps.push(`${spec.name}: using the product ID from Vercel settings.`);
         continue;
       }
@@ -168,7 +173,7 @@ export async function runDodoSetup(webhookUrl: string): Promise<DodoSetupResult>
           name: spec.name,
           description: spec.description,
           tax_category: "digital_products",
-          price: { type: "one_time_price", currency: "INR", price: spec.paise, discount: 0, purchasing_power_parity: false, tax_inclusive: true },
+          price: { type: "one_time_price", currency: "currency" in spec ? spec.currency : "INR", price: spec.paise, discount: 0, purchasing_power_parity: false, tax_inclusive: true },
         }),
       });
       setup.products[spec.slot] = created.product_id;

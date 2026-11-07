@@ -184,7 +184,7 @@ export function Wizard({ initial, presetMood, startAtSummary }: { initial: Prefe
                 </span>
                 <Stepper labelledBy="trav-label" value={s.travellers} min={1} max={30} onChange={(v) => set("travellers", v)} />
                 <span className="text-[14px] text-ink-soft">
-                  Trip plan for this group: <strong className="text-charcoal">₹{priceFor(s.travellers).amountInr}</strong> total
+                  Trip plan for this group: <strong className="text-charcoal">₹{priceFor(s.travellers).amountInr}</strong> in India, or <strong className="text-charcoal">{priceFor(s.travellers, "USD").label}</strong> from abroad
                   {s.travellers >= 5 ? " (5+ travellers)" : " (1–4 travellers)"}
                 </span>
               </div>

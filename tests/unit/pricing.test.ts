@@ -69,3 +69,16 @@ describe("traveller changes", () => {
     expect(travellerChangeRule("group", 12)).toEqual({ kind: "free" });
   });
 });
+
+describe("international (USD) prices", () => {
+  test("$10 for 1–4 travellers, $19 for 5+, $9 upgrade", async () => {
+    const { priceFor, UPGRADE_PRICE, formatPrice, unlockCta } = await import("@/lib/pricing");
+    expect(priceFor(1, "USD")).toMatchObject({ tier: "standard", amountPaise: 1000, label: "$10" });
+    expect(priceFor(4, "USD").label).toBe("$10");
+    expect(priceFor(5, "USD")).toMatchObject({ tier: "group", amountPaise: 1900, label: "$19" });
+    expect(UPGRADE_PRICE.USD).toBe(900);
+    expect(formatPrice(49900, "INR")).toBe("₹499");
+    expect(unlockCta(6, "USD")).toBe("Unlock our trip for $19");
+    expect(priceFor(2).label).toBe("₹499");
+  });
+});

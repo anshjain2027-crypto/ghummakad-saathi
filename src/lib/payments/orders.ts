@@ -4,7 +4,7 @@ import { config } from "@/lib/config";
 import { asService, one, type Queryable } from "@/lib/db";
 import { hmacHex, safeEqualHex } from "@/lib/crypto";
 import { audit } from "@/lib/audit";
-import { entitlementWindow, priceFor, TIER_UPGRADE_PAISE, type Tier } from "@/lib/pricing";
+import { entitlementWindow, PRICES, priceFor, UPGRADE_PRICE, type PayCurrency, type Tier } from "@/lib/pricing";
 import { PreferencesSchema } from "@/lib/planner/schema";
 import { latestEntitlement } from "@/lib/data/trips";
 import { createDodoCheckout, dodoProductFor, getDodoPayment, type DodoPurpose } from "./dodo";
@@ -21,6 +21,7 @@ export type Order = {
   tier: Tier;
   travellers: number;
   amountPaise: number;
+  currency: PayCurrency;
   provider: "dodo" | "mock";
   providerOrderId: string | null;
   checkoutSessionId: string | null;
@@ -30,13 +31,13 @@ export type Order = {
 
 type OrderRow = {
   id: string; user_id: string; draft_id: string | null; trip_id: string | null; purpose: Purpose; tier: Tier; travellers: number;
-  amount_paise: number; provider: "dodo" | "mock"; provider_order_id: string | null; checkout_session_id: string | null;
+  amount_paise: number; currency: string; provider: "dodo" | "mock"; provider_order_id: string | null; checkout_session_id: string | null;
   status: OrderStatus; failure_reason: string | null;
 };
 
 const toOrder = (r: OrderRow): Order => ({
   id: r.id, userId: r.user_id, draftId: r.draft_id, tripId: r.trip_id, purpose: r.purpose, tier: r.tier, travellers: r.travellers,
-  amountPaise: r.amount_paise, provider: r.provider, providerOrderId: r.provider_order_id, checkoutSessionId: r.checkout_session_id,
+  amountPaise: r.amount_paise, currency: r.currency === "USD" ? "USD" : "INR", provider: r.provider, providerOrderId: r.provider_order_id, checkoutSessionId: r.checkout_session_id,
   status: r.status, failureReason: r.failure_reason,
 });
 
@@ -60,7 +61,9 @@ export async function createOrder(args: {
   purpose: Purpose;
   draftId?: string;
   tripId?: string;
+  currency?: PayCurrency;
 }): Promise<{ order: Order; redirectUrl: string } | { alreadyPaid: true; tripId: string }> {
+  const currency: PayCurrency = args.currency === "USD" ? "USD" : "INR";
   const prepared = await asService<{ alreadyPaid: true; tripId: string } | { order: Order; fresh: boolean }>(async (q) => {
     let travellers: number;
     let tier: Tier;
@@ -79,7 +82,7 @@ export async function createOrder(args: {
       if (existingTrip) return { alreadyPaid: true as const, tripId: existingTrip.id };
       const prefs = PreferencesSchema.parse(typeof draft.preferences === "string" ? JSON.parse(draft.preferences) : draft.preferences);
       travellers = prefs.travellers;
-      ({ tier, amountPaise } = priceFor(travellers));
+      ({ tier, amountPaise } = priceFor(travellers, currency));
     } else {
       if (!args.tripId) throw new PaymentError("bad_request", "Missing trip.");
       const trip = await one<{ id: string; owner_id: string; travellers: number; preferences: unknown }>(
@@ -94,12 +97,12 @@ export async function createOrder(args: {
         if (ent.tier === "group") throw new PaymentError("bad_request", "This trip already covers 5 or more travellers.");
         tier = "group";
         travellers = Math.max(5, trip.travellers);
-        amountPaise = TIER_UPGRADE_PAISE;
+        amountPaise = UPGRADE_PRICE[currency];
       } else {
         if (ent?.editable) throw new PaymentError("bad_request", "Your editing window is still active.");
         tier = ent?.tier ?? priceFor(trip.travellers).tier;
         travellers = trip.travellers;
-        amountPaise = priceFor(tier === "group" ? Math.max(5, travellers) : Math.min(4, travellers)).amountPaise;
+        amountPaise = PRICES[currency][tier];
       }
     }
 
@@ -111,13 +114,13 @@ export async function createOrder(args: {
        order by created_at desc limit 1`,
       [args.userId, args.purpose, args.draftId ?? null, args.tripId ?? null, tier],
     );
-    if (open && open.amount_paise === amountPaise) return { order: toOrder(open), fresh: false };
+    if (open && open.amount_paise === amountPaise && open.currency === currency) return { order: toOrder(open), fresh: false };
 
     const created = await one<OrderRow>(
       q,
-      `insert into public.payment_order (user_id, draft_id, trip_id, purpose, tier, travellers, amount_paise, provider, idempotency_key)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9) returning *`,
-      [args.userId, args.draftId ?? null, args.tripId ?? null, args.purpose, tier, travellers, amountPaise, paymentProvider, randomUUID()],
+      `insert into public.payment_order (user_id, draft_id, trip_id, purpose, tier, travellers, amount_paise, currency, provider, idempotency_key)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) returning *`,
+      [args.userId, args.draftId ?? null, args.tripId ?? null, args.purpose, tier, travellers, amountPaise, currency, paymentProvider, randomUUID()],
     );
     return { order: toOrder(created!), fresh: true };
   });
@@ -130,7 +133,7 @@ export async function createOrder(args: {
   }
 
   // Dodo: one hosted checkout session per order; reuse while it is still open.
-  const productId = await dodoProductFor(order.purpose, order.tier);
+  const productId = await dodoProductFor(order.purpose, order.tier, order.currency);
   if (!productId) throw new PaymentError("config", "Payments are not fully set up yet (missing Dodo product). Please try again later.");
   const returnUrl = `${config.appUrl}/checkout/return?order=${order.id}`;
   const cancelUrl = `${config.appUrl}/checkout/return?order=${order.id}&cancelled=1`;
@@ -192,7 +195,7 @@ export async function fulfillOrder(
     // checkouts may present local currency to the buyer, so for Dodo we
     // verify the product we sold, and for demo payments the exact paise.
     if (order.provider === "dodo") {
-      const expected = await dodoProductFor(order.purpose, order.tier, q);
+      const expected = await dodoProductFor(order.purpose, order.tier, order.currency === "USD" ? "USD" : "INR", q);
       if (!expected || evidence.productId !== expected) {
         await markOrder(q, orderId, "failed", "Product mismatch on provider payment");
         throw new PaymentError("mismatch", "Payment did not match this order.");

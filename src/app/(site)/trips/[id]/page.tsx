@@ -10,7 +10,8 @@ import { bookingOptions } from "@/lib/booking/adapters";
 import { sponsoredFor } from "@/lib/sponsors";
 import { swapCandidates } from "@/lib/planner/itinerary";
 import { COMPANIONS, PACES, STYLES } from "@/lib/domain";
-import { PRICING_COPY } from "@/lib/pricing";
+import { formatPrice, PRICING_COPY, UPGRADE_PRICE } from "@/lib/pricing";
+import { payCurrency } from "@/lib/pay-currency";
 import { Scene } from "@/components/scene";
 import { Band } from "@/components/money";
 import { SponsoredSlot } from "@/components/sponsored";
@@ -56,6 +57,7 @@ export default async function TripHub({ params, searchParams }: { params: Promis
   const plan = current.plan;
   const prefs = trip.preferences;
   after(() => refreshPhotos({ destinationId: plan.destinationId, limit: 10 }));
+  const payCur = await payCurrency();
   const [dest, places, destinations] = await Promise.all([getDestination(plan.destinationId), curatedPlaces(plan.destinationId), listDestinations()]);
   if (!dest) notFound();
   const booking = bookingOptions(dest, prefs);
@@ -210,6 +212,7 @@ export default async function TripHub({ params, searchParams }: { params: Promis
               tier={ent?.tier ?? "standard"}
               current={{ destinationId: plan.destinationId, days: plan.days.length, travellers: trip.travellers, style: prefs.style, pace: prefs.pace, budgetInr: prefs.budgetInr, startDate: prefs.startDate ?? "" }}
               destinations={destinations.map((d) => ({ id: d.id, name: d.name, country: d.country }))}
+              upgradeLabel={formatPrice(UPGRADE_PRICE[payCur], payCur)}
             />
           </div>
 

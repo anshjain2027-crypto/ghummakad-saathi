@@ -16,7 +16,7 @@ export function BookingModules({ tripId, options, selfBookings, sponsored }: { t
         Book it your way
       </h2>
       <p className="mt-2 max-w-2xl text-[15px] text-ink-soft">
-        Bookings happen on the provider&rsquo;s own website, not here. Your ₹499 / ₹999 plan doesn&rsquo;t include tickets or rooms, and we never mark anything as booked for you.
+        Bookings happen on the provider&rsquo;s own website, not here. Your trip plan doesn&rsquo;t include tickets or rooms, and we never mark anything as booked for you.
       </p>
       <div className="mt-6 space-y-6">
         {cats.map((cat) => {

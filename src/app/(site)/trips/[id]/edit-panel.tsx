@@ -9,7 +9,7 @@ import type { Tier } from "@/lib/pricing";
 
 type Current = { destinationId: string; days: number; travellers: number; style: string; pace: string; budgetInr: number; startDate: string };
 
-export function EditPanel({ tripId, editable, tier, current, destinations }: { tripId: string; editable: boolean; tier: Tier; current: Current; destinations: { id: string; name: string; country: string }[] }) {
+export function EditPanel({ tripId, editable, tier, current, destinations, upgradeLabel = "₹500" }: { tripId: string; editable: boolean; tier: Tier; current: Current; destinations: { id: string; name: string; country: string }[]; upgradeLabel?: string }) {
   const [state, action, pending] = useActionState<TripActionResult | null, FormData>(editTripAction.bind(null, tripId), null);
   const [upState, upAction, upPending] = useActionState<CheckoutState, FormData>(startUpgradeCheckout.bind(null, tripId), {});
   const [travellers, setTravellers] = useState(current.travellers);
@@ -69,7 +69,7 @@ export function EditPanel({ tripId, editable, tier, current, destinations }: { t
         <div className="grid grid-cols-2 gap-3">
           <label className="grid gap-1.5 text-[14px] font-medium">
             Budget (₹ total)
-            <input name="budgetInr" type="number" min={5000} step={1000} defaultValue={current.budgetInr} className={inputClass} />
+            <input name="budgetInr" type="number" min={2000} step={500} defaultValue={current.budgetInr} className={inputClass} />
           </label>
           <label className="grid gap-1.5 text-[14px] font-medium">
             Start date
@@ -79,7 +79,7 @@ export function EditPanel({ tripId, editable, tier, current, destinations }: { t
 
         {needsUpgrade ? (
           <Notice tone="warning" title="5 or more travellers">
-            Your plan covers 1–4 travellers. A group plan is a one-time ₹500 upgrade (inclusive of applicable taxes). Your 30-day window doesn&rsquo;t change. You won&rsquo;t be charged unless you confirm below.
+            Your plan covers 1–4 travellers. A group plan is a one-time {upgradeLabel} upgrade (inclusive of applicable taxes). Your 30-day window doesn&rsquo;t change. You won&rsquo;t be charged unless you confirm below.
           </Notice>
         ) : null}
         {state && !state.ok ? <Notice tone="error">{state.error}</Notice> : null}
@@ -93,7 +93,7 @@ export function EditPanel({ tripId, editable, tier, current, destinations }: { t
         <form action={upAction} className="mt-3">
           {upState.error ? <Notice tone="error">{upState.error}</Notice> : null}
           <Button type="submit" variant="secondary" disabled={upPending} className="mt-2 w-full">
-            {upPending ? "Opening checkout…" : "Confirm ₹500 group upgrade"}
+            {upPending ? "Opening checkout…" : `Confirm ${upgradeLabel} group upgrade`}
           </Button>
         </form>
       ) : null}

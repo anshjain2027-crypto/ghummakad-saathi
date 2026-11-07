@@ -16,6 +16,7 @@ import {
   type Purpose,
 } from "@/lib/payments/orders";
 import { rateLimit } from "@/lib/ratelimit";
+import { payCurrency } from "@/lib/pay-currency";
 
 export type CheckoutState = { error?: string };
 
@@ -25,7 +26,7 @@ async function begin(purpose: Purpose, target: { draftId?: string; tripId?: stri
   if (!(await rateLimit(`checkout:${user.id}`, 20, 3600))) return { error: "Too many checkout attempts. Please wait a few minutes." };
   let url: string;
   try {
-    const res = await createOrder({ userId: user.id, email: user.email, name: user.displayName, purpose, ...target });
+    const res = await createOrder({ userId: user.id, email: user.email, name: user.displayName, purpose, ...target, currency: await payCurrency() });
     if ("alreadyPaid" in res) url = `/trips/${res.tripId}`;
     else url = res.redirectUrl;
   } catch (e) {

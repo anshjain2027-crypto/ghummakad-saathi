@@ -4,6 +4,7 @@ import { refreshPhotos } from "@/lib/photos";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
+import { postsForDestination } from "@/lib/data/blog";
 import { curatedPlaces, getDestination } from "@/lib/data/catalog";
 import { PLACE_CATEGORIES } from "@/lib/domain";
 import { Scene } from "@/components/scene";
@@ -21,7 +22,7 @@ export default async function DestinationPage({ params }: { params: Promise<{ sl
   const d = await getDestination(slug);
   if (!d) notFound();
   after(() => refreshPhotos({ destinationId: d.id, limit: 10 }));
-  const [places, user] = await Promise.all([curatedPlaces(d.id), getCurrentUser()]);
+  const [places, user, guides] = await Promise.all([curatedPlaces(d.id), getCurrentUser(), postsForDestination(d.id)]);
   const months = d.bestMonths.map((m) => new Date(2026, m - 1, 1).toLocaleString("en-IN", { month: "short" })).join(", ");
   const jsonLd = {
     "@context": "https://schema.org",
@@ -98,6 +99,20 @@ export default async function DestinationPage({ params }: { params: Promise<{ sl
           <Link href={user ? `/map?lat=${d.lat}&lng=${d.lng}&z=11` : `/sign-in?next=${encodeURIComponent(`/map?lat=${d.lat}&lng=${d.lng}&z=11`)}`} className="block text-center text-[15px] text-forest underline underline-offset-4">
             {user ? "See it on the community map" : "Sign in free to see community pins here"}
           </Link>
+          {guides.length ? (
+            <div className="rounded-[var(--radius-card)] border border-line bg-surface p-5">
+              <p className="font-serif text-[21px]">Guides</p>
+              <ul className="mt-2 space-y-2">
+                {guides.map((g) => (
+                  <li key={g.id}>
+                    <Link href={`/blog/${g.slug}`} className="text-[15px] text-forest underline underline-offset-4">
+                      {g.title}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
         </aside>
       </Container>
     </>

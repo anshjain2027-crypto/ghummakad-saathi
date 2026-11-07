@@ -3,7 +3,7 @@ import { config } from "@/lib/config";
 import type { Queryable, Database } from "./types";
 import { createPgliteDatabase } from "./pglite";
 import { createPostgresDatabase } from "./postgres";
-import { CATALOGUE_VERSION, seedDatabase } from "@/lib/seed";
+import { BLOG_VERSION, CATALOGUE_VERSION, seedBlog, seedDatabase } from "@/lib/seed";
 
 export type { Queryable } from "./types";
 
@@ -36,6 +36,16 @@ async function bootPostgres(url: string): Promise<Database> {
     });
   } catch (e) {
     console.error("catalogue seed check failed", e);
+  }
+  // Starter blog posts, separately so a missing blog table never blocks the catalogue.
+  try {
+    await db.transaction(async (q) => {
+      const r = await q.query<{ v: unknown }>(`select value as v from public.app_setting where key = 'blog_version'`);
+      const v = r[0]?.v;
+      if ((typeof v === "string" && v.startsWith('"') ? JSON.parse(v) : v) !== BLOG_VERSION) await seedBlog(q);
+    });
+  } catch (e) {
+    console.error("blog seed check failed", e);
   }
   return db;
 }

@@ -5,7 +5,9 @@ import { getCurrentUser } from "@/lib/auth";
 import { currentDraft } from "@/lib/data/drafts";
 import { curatedPlaces, getDestination } from "@/lib/data/catalog";
 import { mockSkeleton, resolvePlan } from "@/lib/planner/itinerary";
-import { priceFor, PRICING_COPY, unlockCta } from "@/lib/pricing";
+import { formatPrice, priceFor, PRICING_COPY, unlockCta, UPGRADE_PRICE } from "@/lib/pricing";
+import { payCurrency } from "@/lib/pay-currency";
+import { CurrencySwitch } from "@/components/currency-switch";
 import { paymentProvider } from "@/lib/payments/orders";
 import { Scene } from "@/components/scene";
 import { Band } from "@/components/money";
@@ -24,7 +26,8 @@ export default async function ReviewPage() {
   const prefs = draft.preferences;
   const places = await curatedPlaces(dest.id);
   const preview = resolvePlan(mockSkeleton(dest, places, prefs), { dest, places, prefs });
-  const price = priceFor(prefs.travellers);
+  const payCur = await payCurrency();
+  const price = priceFor(prefs.travellers, payCur);
   const cur = prefs.displayCurrency;
 
   return (
@@ -99,7 +102,8 @@ export default async function ReviewPage() {
             <Scene kind={dest.scene} seed={`${dest.id}-review`} label={dest.name} photoUrl={dest.heroImageUrl} className="aspect-[16/8]" />
             <div className="p-6">
               <p className="text-[15px] text-ink-soft">One-time price for the whole group</p>
-              <p className="nums mt-1 font-serif text-[52px] leading-none text-forest">₹{price.amountInr}</p>
+              <p className="nums mt-1 font-serif text-[52px] leading-none text-forest">{price.label}</p>
+              <CurrencySwitch current={payCur} next="/plan/review" className="mt-1" />
               <p className="mt-2 text-[14px] text-ink-soft">{PRICING_COPY.checkout}</p>
               <p className="mt-4 font-medium">{PRICING_COPY.promise}</p>
 
@@ -118,17 +122,17 @@ export default async function ReviewPage() {
                 <li>Several separate trips at once — one payment, one trip workspace</li>
               </ul>
               <p className="mt-4 text-[13px] text-ink-soft">
-                {price.tier === "group" ? "Priced for 5+ travellers." : "Priced for 1–4 travellers. Growing to 5+ later is a ₹500 upgrade you confirm first."}{" "}
+                {price.tier === "group" ? "Priced for 5+ travellers." : `Priced for 1–4 travellers. Growing to 5+ later is a ${formatPrice(UPGRADE_PRICE[payCur], payCur)} upgrade you confirm first.`}{" "}
                 <Link href="/refunds" className="underline underline-offset-2">
                   Refund policy
                 </Link>
               </p>
               <div className="mt-6">
                 {user ? (
-                  <CheckoutButton label={unlockCta(prefs.travellers)} />
+                  <CheckoutButton label={unlockCta(prefs.travellers, payCur)} />
                 ) : (
                   <ButtonLink href={`/sign-in?next=${encodeURIComponent("/plan/review")}`} className="w-full">
-                    Sign in to {unlockCta(prefs.travellers).toLowerCase()}
+                    Sign in to {unlockCta(prefs.travellers, payCur).toLowerCase()}
                   </ButtonLink>
                 )}
               </div>

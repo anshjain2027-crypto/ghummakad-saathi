@@ -10,13 +10,36 @@ export const EDIT_WINDOW_MS = EDIT_WINDOW_DAYS * 24 * 60 * 60 * 1000;
 
 export type Tier = "standard" | "group";
 
-export const TIER_PRICE_PAISE: Record<Tier, number> = {
-  standard: 49_900, // ₹499, 1–4 travellers, inclusive of applicable taxes
-  group: 99_900, // ₹999, 5+ travellers, inclusive of applicable taxes
+/**
+ * Two price lists (product owner decision, 7 Nov 2026): buyers in India pay in
+ * rupees; everyone else pays in US dollars. Amounts are in minor units
+ * (paise / cents), taxes included.
+ */
+export type PayCurrency = "INR" | "USD";
+export const PAY_CURRENCIES: PayCurrency[] = ["INR", "USD"];
+
+export const PRICES: Record<PayCurrency, Record<Tier, number>> = {
+  INR: { standard: 49_900, group: 99_900 }, // ₹499 / ₹999
+  USD: { standard: 1_000, group: 1_900 }, // $10 / $19
 };
 
 /** Explicitly confirmed upgrade when a standard workspace grows to 5+. */
-export const TIER_UPGRADE_PAISE = TIER_PRICE_PAISE.group - TIER_PRICE_PAISE.standard; // ₹500
+export const UPGRADE_PRICE: Record<PayCurrency, number> = {
+  INR: PRICES.INR.group - PRICES.INR.standard, // ₹500
+  USD: PRICES.USD.group - PRICES.USD.standard, // $9
+};
+
+/** Back-compat aliases (INR). */
+export const TIER_PRICE_PAISE = PRICES.INR;
+export const TIER_UPGRADE_PAISE = UPGRADE_PRICE.INR;
+
+export function formatPrice(minor: number, currency: PayCurrency | string): string {
+  const major = minor / 100;
+  if (currency === "USD") return `$${Number.isInteger(major) ? major : major.toFixed(2)}`;
+  return `₹${major.toLocaleString("en-IN")}`;
+}
+
+export const isPayCurrency = (c: unknown): c is PayCurrency => c === "INR" || c === "USD";
 
 export function assertTravellers(travellers: number): number {
   if (!Number.isInteger(travellers) || travellers < 1 || travellers > 30) {
@@ -29,26 +52,29 @@ export function tierFor(travellers: number): Tier {
   return assertTravellers(travellers) >= GROUP_THRESHOLD ? "group" : "standard";
 }
 
-export function priceFor(travellers: number): { tier: Tier; amountPaise: number; amountInr: number } {
+export function priceFor(
+  travellers: number,
+  currency: PayCurrency = "INR",
+): { tier: Tier; currency: PayCurrency; amountPaise: number; amountInr: number; label: string } {
   const tier = tierFor(travellers);
-  const amountPaise = TIER_PRICE_PAISE[tier];
-  return { tier, amountPaise, amountInr: amountPaise / 100 };
+  const amountPaise = PRICES[currency][tier];
+  return { tier, currency, amountPaise, amountInr: PRICES.INR[tier] / 100, label: formatPrice(amountPaise, currency) };
 }
 
 export function tierAllows(tier: Tier, travellers: number): boolean {
   return tier === "group" || assertTravellers(travellers) < GROUP_THRESHOLD;
 }
 
-export function unlockCta(travellers: number): string {
-  const { tier, amountInr } = priceFor(travellers);
-  return tier === "group" ? `Unlock our trip for ₹${amountInr}` : `Unlock my trip for ₹${amountInr}`;
+export function unlockCta(travellers: number, currency: PayCurrency = "INR"): string {
+  const { tier, label } = priceFor(travellers, currency);
+  return tier === "group" ? `Unlock our trip for ${label}` : `Unlock my trip for ${label}`;
 }
 
 export const PRICING_COPY = {
   promise: "One trip workspace. Change anything, even your destination, as often as you like for 30 days.",
-  checkout: "₹499 / ₹999 total, inclusive of applicable taxes. Hotel, travel and activity bookings cost extra.",
+  checkout: "One-time price, inclusive of applicable taxes. Hotel, travel and activity bookings cost extra.",
   expired: "Your 30-day editing period has ended. Your saved trip is still here.",
-  tiers: "₹499 for 1–4 travellers / ₹999 for 5+ travellers",
+  tiers: "₹499 (or $10 outside India) for 1–4 travellers · ₹999 (or $19) for 5+",
 } as const;
 
 // ───────────── Entitlement window ─────────────
@@ -74,7 +100,7 @@ export type TravellerChange =
   | { kind: "upgrade_required"; amountPaise: number };
 
 /** 4→5 needs a confirmed upgrade; 5→4 never charges or silently refunds. */
-export function travellerChangeRule(currentTier: Tier, nextTravellers: number): TravellerChange {
+export function travellerChangeRule(currentTier: Tier, nextTravellers: number, currency: PayCurrency = "INR"): TravellerChange {
   if (tierAllows(currentTier, nextTravellers)) return { kind: "free" };
-  return { kind: "upgrade_required", amountPaise: TIER_UPGRADE_PAISE };
+  return { kind: "upgrade_required", amountPaise: UPGRADE_PRICE[currency] };
 }

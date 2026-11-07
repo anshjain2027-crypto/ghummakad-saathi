@@ -1,16 +1,16 @@
 import { requireRole } from "@/lib/auth";
 import { asService } from "@/lib/db";
-import { formatInr } from "@/lib/geo";
 import { Chip } from "@/components/ui";
 import { config } from "@/lib/config";
+import { formatPrice } from "@/lib/pricing";
 import { getDodoSetup } from "@/lib/payments/dodo";
 import { DodoSetupButton } from "./dodo-setup";
 
 export default async function AdminPayments() {
   await requireRole("admin", "/admin/payments");
   const { orders, events } = await asService(async (q) => ({
-    orders: await q.query<{ id: string; email: string; purpose: string; tier: string; travellers: number; amount_paise: number; provider: string; status: string; failure_reason: string | null; created_at: Date; paid_at: Date | null }>(
-      `select o.id, u.email, o.purpose, o.tier, o.travellers, o.amount_paise, o.provider, o.status, o.failure_reason, o.created_at, o.paid_at
+    orders: await q.query<{ id: string; email: string; purpose: string; tier: string; travellers: number; amount_paise: number; currency: string; provider: string; status: string; failure_reason: string | null; created_at: Date; paid_at: Date | null }>(
+      `select o.id, u.email, o.purpose, o.tier, o.travellers, o.amount_paise, o.currency, o.provider, o.status, o.failure_reason, o.created_at, o.paid_at
        from public.payment_order o join auth.users u on u.id = o.user_id order by o.created_at desc limit 100`,
     ),
     events: await q.query<{ provider: string; event_type: string; signature_valid: boolean; received_at: Date; order_id: string | null }>(
@@ -23,6 +23,9 @@ export default async function AdminPayments() {
     { label: "₹499 product", ok: Boolean(setup.products.standard) },
     { label: "₹999 product", ok: Boolean(setup.products.group) },
     { label: "₹500 upgrade product", ok: Boolean(setup.products.upgrade) },
+    { label: "$10 product", ok: Boolean(setup.products.standard_usd) },
+    { label: "$19 product", ok: Boolean(setup.products.group_usd) },
+    { label: "$9 upgrade product", ok: Boolean(setup.products.upgrade_usd) },
     { label: "Webhook", ok: Boolean(setup.webhookSecret) },
   ];
   const allDone = items.every((i) => i.ok);
@@ -46,7 +49,7 @@ export default async function AdminPayments() {
         {config.dodo ? (
           <>
             <p className="mt-3 text-[14px] text-ink-soft">
-              One click creates the three products in INR (taxes included) and the webhook to {config.appUrl}/api/payments/webhook. Safe to press again — it never creates duplicates.
+              One click creates the six products — ₹499/₹999/₹500 for India and $10/$19/$9 for international buyers (taxes included) — and the webhook to {config.appUrl}/api/payments/webhook. Safe to press again — it never creates duplicates.
             </p>
             <DodoSetupButton done={allDone} />
           </>
@@ -76,7 +79,7 @@ export default async function AdminPayments() {
                 <td className="p-3">
                   {o.tier === "group" ? "5+" : "1–4"} ({o.travellers})
                 </td>
-                <td className="nums p-3">{formatInr(o.amount_paise / 100)}</td>
+                <td className="nums p-3">{formatPrice(o.amount_paise, o.currency)}</td>
                 <td className="p-3">{o.provider}</td>
                 <td className="p-3">
                   <Chip tone={o.status === "paid" ? "forest" : o.status === "failed" ? "terracotta" : "plain"}>{o.status}</Chip>

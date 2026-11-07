@@ -2,6 +2,26 @@ import type { Queryable } from "@/lib/db/types";
 import { SEED_DESTINATIONS as BASE } from "./destinations";
 import { INDIA_DESTINATIONS } from "./india";
 import { DESTINATION_EXTRAS } from "./extras";
+import { BLOG_VERSION, SEED_POSTS } from "./blog";
+
+export { BLOG_VERSION };
+
+/** Inserts starter guides once; never overwrites posts edited in the admin. */
+export async function seedBlog(q: Queryable) {
+  for (const p of SEED_POSTS) {
+    await q.query(
+      `insert into public.blog_post (slug, title, description, body_md, destination_id, tags, status, published_at)
+       values ($1, $2, $3, $4, (select id from public.destination where id = $5), $6, 'published', $7)
+       on conflict (slug) do nothing`,
+      [p.slug, p.title, p.description, p.body, p.destinationId, p.tags, p.publishedAt],
+    );
+  }
+  await q.query(
+    `insert into public.app_setting (key, value, updated_at) values ('blog_version', $1::jsonb, now())
+     on conflict (key) do update set value = excluded.value, updated_at = now()`,
+    [JSON.stringify(BLOG_VERSION)],
+  );
+}
 
 /** Bump when the editorial catalogue changes so production re-seeds on boot. */
 export const CATALOGUE_VERSION = "2026-10-30.1";
@@ -93,6 +113,7 @@ export async function seedDatabase(q: Queryable, opts: { demo?: boolean } = { de
     [JSON.stringify(CATALOGUE_VERSION)],
   );
 
+  await seedBlog(q);
   if (opts.demo) await seedDemoData(q);
 }
 
