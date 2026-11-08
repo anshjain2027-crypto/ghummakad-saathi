@@ -6,7 +6,7 @@ import { MOODS } from "@/lib/domain";
 import { Scene } from "@/components/scene";
 import { Chip, Container, PageHeading } from "@/components/ui";
 
-export const metadata: Metadata = { title: "Discover" };
+export const metadata: Metadata = { title: "Discover", robots: { index: false, follow: true } };
 
 export default async function Discover({ searchParams }: { searchParams: Promise<{ mood?: string }> }) {
   await requireUser("/discover");

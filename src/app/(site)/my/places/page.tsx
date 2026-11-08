@@ -6,7 +6,7 @@ import { PLACE_CATEGORIES } from "@/lib/domain";
 import { deletePinAction } from "@/app/actions/community";
 import { ButtonLink, Chip, Container, Empty, PageHeading } from "@/components/ui";
 
-export const metadata: Metadata = { title: "Saved places" };
+export const metadata: Metadata = { title: "Saved places", robots: { index: false, follow: true } };
 
 const STATUS: Record<string, { label: string; tone: "forest" | "terracotta" | "plain" }> = {
   approved: { label: "Public", tone: "forest" },

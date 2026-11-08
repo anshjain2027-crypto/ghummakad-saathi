@@ -5,7 +5,7 @@ import { Container } from "@/components/ui";
 import { Scene } from "@/components/scene";
 import { SignInForm } from "./sign-in-form";
 
-export const metadata: Metadata = { title: "Sign in" };
+export const metadata: Metadata = { title: "Sign in", robots: { index: false, follow: true } };
 
 export default async function SignInPage({ searchParams }: { searchParams: Promise<{ next?: string; reason?: string; error?: string; mode?: string }> }) {
   const sp = await searchParams;

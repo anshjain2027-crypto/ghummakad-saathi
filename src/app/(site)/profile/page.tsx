@@ -6,7 +6,7 @@ import { Container, PageHeading } from "@/components/ui";
 import { ProfileForm } from "./profile-form";
 import { PasswordForm } from "./password-form";
 
-export const metadata: Metadata = { title: "Profile" };
+export const metadata: Metadata = { title: "Profile", robots: { index: false, follow: true } };
 
 export default async function Profile({ searchParams }: { searchParams: Promise<{ reset?: string }> }) {
   const sp = await searchParams;

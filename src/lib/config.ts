@@ -1,4 +1,5 @@
 import "server-only";
+import { SITE_URL } from "@/lib/site";
 import { z } from "zod";
 
 /**
@@ -65,7 +66,7 @@ export const config = {
   isProd,
   /** Demo mode = local PGlite database + demo sign-in + mock payments. */
   demoMode,
-  appUrl: env.APP_URL ?? "http://localhost:3000",
+  appUrl: SITE_URL,
   sessionSecret: env.SESSION_SECRET ?? "dev-only-insecure-session-secret-change-me-please",
   adminEmails: (env.ADMIN_EMAILS ?? (demoMode && !isProd ? "admin@ghummakad.demo" : ""))
     .split(",")

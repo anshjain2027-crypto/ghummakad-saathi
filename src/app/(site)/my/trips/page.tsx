@@ -7,7 +7,7 @@ import { getDestination } from "@/lib/data/catalog";
 import { Scene } from "@/components/scene";
 import { ButtonLink, Container, Empty, PageHeading } from "@/components/ui";
 
-export const metadata: Metadata = { title: "My trips" };
+export const metadata: Metadata = { title: "My trips", robots: { index: false, follow: true } };
 
 export default async function MyTrips() {
   const user = await requireUser("/my/trips");

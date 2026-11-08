@@ -5,7 +5,7 @@ import { myReviews } from "@/lib/data/community";
 import { WORTH_GOING } from "@/lib/domain";
 import { ButtonLink, Container, Empty, PageHeading, Stars } from "@/components/ui";
 
-export const metadata: Metadata = { title: "My reviews" };
+export const metadata: Metadata = { title: "My reviews", robots: { index: false, follow: true } };
 
 export default async function MyReviews() {
   const user = await requireUser("/my/reviews");

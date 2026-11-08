@@ -8,13 +8,23 @@ import { postsForDestination } from "@/lib/data/blog";
 import { curatedPlaces, getDestination } from "@/lib/data/catalog";
 import { PLACE_CATEGORIES } from "@/lib/domain";
 import { Scene } from "@/components/scene";
+import { SITE_URL } from "@/lib/site";
 import { ButtonLink, Chip, Container } from "@/components/ui";
 
 /** Public, indexable editorial destination page (SEO). Community content stays behind sign-in. */
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const d = await getDestination((await params).slug);
   if (!d) return { title: "Destination" };
-  return { title: `${d.name}, ${d.region}`, description: `${d.tagline} ${d.story.slice(0, 120)}…`, alternates: { canonical: `/destinations/${d.id}` } };
+  const title = `${d.name}, ${d.region} travel guide & itinerary`;
+  const description = `${d.tagline} ${d.story.slice(0, 120)}…`;
+  const images = d.heroImageUrl ? [d.heroImageUrl] : undefined;
+  return {
+    title,
+    description,
+    alternates: { canonical: `/destinations/${d.id}` },
+    openGraph: { type: "article", title, description, url: `/destinations/${d.id}`, images },
+    twitter: { card: "summary_large_image", title, description, images },
+  };
 }
 
 export default async function DestinationPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -29,6 +39,8 @@ export default async function DestinationPage({ params }: { params: Promise<{ sl
     "@type": "TouristDestination",
     name: d.name,
     description: d.story,
+    url: `${SITE_URL}/destinations/${d.id}`,
+    ...(d.heroImageUrl ? { image: d.heroImageUrl } : {}),
     geo: { "@type": "GeoCoordinates", latitude: d.lat, longitude: d.lng },
     containedInPlace: { "@type": "Place", name: `${d.region}, ${d.country}` },
   };

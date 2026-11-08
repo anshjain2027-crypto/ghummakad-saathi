@@ -3,7 +3,11 @@ import { requireUser } from "@/lib/auth";
 import { sponsoredFor } from "@/lib/sponsors";
 import { MapExplorer } from "./map-explorer";
 
-export const metadata: Metadata = { title: "Community map" };
+export const metadata: Metadata = {
+  title: "Community travel map of India",
+  description: "Explore traveller-recommended cafés, viewpoints, stays and hidden gems across India on an interactive map from the Ghummakad Saathi community.",
+  robots: { index: false, follow: true },
+};
 
 export default async function MapPage({ searchParams }: { searchParams: Promise<{ lat?: string; lng?: string; z?: string; cat?: string }> }) {
   const sp = await searchParams;
