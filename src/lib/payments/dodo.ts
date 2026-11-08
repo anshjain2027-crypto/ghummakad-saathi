@@ -214,3 +214,23 @@ async function saveSetup(setup: DodoSetup) {
     ),
   );
 }
+
+let autoSetup: Promise<DodoSetupResult> | null = null;
+
+/**
+ * Creates any missing Dodo products + webhook automatically (idempotent,
+ * one run at a time per instance). Used on first checkout and by the health
+ * check so the owner never has to press the admin button.
+ */
+export async function ensureDodoSetup(): Promise<DodoSetupResult | null> {
+  if (!config.dodo) return null;
+  const s = await getDodoSetup();
+  const complete = (["standard", "group", "upgrade", "standard_usd", "group_usd", "upgrade_usd"] as ProductSlot[]).every((k) => s.products[k]) && !!s.webhookSecret;
+  if (complete) return null;
+  if (!autoSetup) {
+    autoSetup = runDodoSetup(`${config.appUrl}/api/payments/webhook`).finally(() => {
+      autoSetup = null;
+    });
+  }
+  return autoSetup;
+}

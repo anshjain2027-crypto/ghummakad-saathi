@@ -1,3 +1,4 @@
+export const maxDuration = 60;
 import { NextResponse, type NextRequest } from "next/server";
 import { asService } from "@/lib/db";
 import { config, integrationSummary } from "@/lib/config";
@@ -31,8 +32,8 @@ let dodoCache: { at: number; result: unknown } | null = null;
 /** Verifies the Dodo key works in the configured mode (GET /products, read-only) and the setup status. */
 async function checkDodo() {
   if (!config.dodo) return { configured: false };
-  if (dodoCache && Date.now() - dodoCache.at < 5 * 60_000) return dodoCache.result;
-  const { getDodoSetup } = await import("@/lib/payments/dodo");
+  if (dodoCache && Date.now() - dodoCache.at < 60_000) return dodoCache.result;
+  const { ensureDodoSetup, getDodoSetup } = await import("@/lib/payments/dodo");
   let keyOk: boolean | null = null;
   let status: number | null = null;
   try {
@@ -42,12 +43,20 @@ async function checkDodo() {
   } catch {
     keyOk = false;
   }
+  let setupError: string | null = null;
+  if (keyOk) {
+    const r = await ensureDodoSetup().catch((e) => ({ ok: false, error: String(e), steps: [] as string[] }));
+    if (r && !r.ok) setupError = (r.error ?? "setup failed").slice(0, 200);
+  }
   const setup = await getDodoSetup().catch(() => null);
   const result = {
+    setupError,
     mode: config.dodo.testMode ? "test" : "live",
     keyOk,
     status,
-    products: setup ? { standard: !!setup.products.standard, group: !!setup.products.group, upgrade: !!setup.products.upgrade } : null,
+    products: setup
+      ? Object.fromEntries((["standard", "group", "upgrade", "standard_usd", "group_usd", "upgrade_usd"] as const).map((k) => [k, !!setup.products[k]]))
+      : null,
     webhook: !!setup?.webhookSecret,
   };
   dodoCache = { at: Date.now(), result };

@@ -133,7 +133,12 @@ export async function createOrder(args: {
   }
 
   // Dodo: one hosted checkout session per order; reuse while it is still open.
-  const productId = await dodoProductFor(order.purpose, order.tier, order.currency);
+  let productId = await dodoProductFor(order.purpose, order.tier, order.currency);
+  if (!productId) {
+    const { ensureDodoSetup } = await import("./dodo");
+    await ensureDodoSetup().catch((e) => console.error("dodo auto-setup failed", e));
+    productId = await dodoProductFor(order.purpose, order.tier, order.currency);
+  }
   if (!productId) throw new PaymentError("config", "Payments are not fully set up yet (missing Dodo product). Please try again later.");
   const returnUrl = `${config.appUrl}/checkout/return?order=${order.id}`;
   const cancelUrl = `${config.appUrl}/checkout/return?order=${order.id}&cancelled=1`;
