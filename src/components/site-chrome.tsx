@@ -28,6 +28,9 @@ export async function SiteHeader({ light = false, minimal = false }: { light?: b
             <Link href="/map" className={`${link} hidden sm:inline-flex`}>
               Map
             </Link>
+            <Link href="/destinations" className={`${link} inline-flex`}>
+              Destinations
+            </Link>
             <Link href="/blog" className={`${link} inline-flex`}>
               Guides
             </Link>
@@ -94,6 +97,7 @@ export function SiteFooter() {
         <nav aria-label="Product" className="grid content-start gap-2 text-[15px]">
           <Link href="/plan" className="hover:text-forest">Plan a trip</Link>
           <Link href="/map" className="hover:text-forest">Community map</Link>
+          <Link href="/destinations" className="hover:text-forest">India destinations</Link>
           <Link href="/blog" className="hover:text-forest">India travel guides</Link>
           <Link href="/pricing" className="hover:text-forest">Pricing</Link>
           <Link href="/my/trips" className="hover:text-forest">My trips</Link>

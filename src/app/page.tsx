@@ -4,8 +4,22 @@ import { SiteFooter, SiteHeader } from "@/components/site-chrome";
 import { ButtonLink, Container } from "@/components/ui";
 import { MOODS } from "@/lib/domain";
 import { PRICING_COPY } from "@/lib/pricing";
+import { listDestinations } from "@/lib/data/catalog";
+import { listPublishedPosts } from "@/lib/data/blog";
+import { isIndia } from "@/lib/destination-seo";
 
-export default function Home() {
+export const revalidate = 3600;
+
+/** Hand-picked order: the places first-time visitors to India search for most, then quieter favourites. */
+const FEATURED = ["jaipur", "agra", "varanasi", "leh-ladakh", "alleppey", "munnar", "jaisalmer", "north-goa", "darjeeling", "mcleodganj-triund", "rishikesh", "udaipur"];
+
+export default async function Home() {
+  const [destinations, posts] = await Promise.all([listDestinations().catch(() => []), listPublishedPosts(3).catch(() => [])]);
+  const india = destinations.filter(isIndia);
+  const featured = [
+    ...FEATURED.map((id) => india.find((d) => d.id === id)).filter((d): d is NonNullable<typeof d> => Boolean(d)),
+    ...india.filter((d) => !FEATURED.includes(d.id) && d.heroImageUrl),
+  ].slice(0, 8);
   return (
     <>
       <SiteHeader light />
@@ -25,8 +39,8 @@ export default function Home() {
                 <ButtonLink href="/plan" variant="light" className="min-h-12 px-7 text-[16px]">
                   Find my trip
                 </ButtonLink>
-                <Link href="/map" className="rounded-md px-1 py-2 text-[16px] text-cream underline decoration-cream/40 underline-offset-[6px] hover:decoration-cream">
-                  Explore the map
+                <Link href="/destinations" className="rounded-md px-1 py-2 text-[16px] text-cream underline decoration-cream/40 underline-offset-[6px] hover:decoration-cream">
+                  Browse destinations
                 </Link>
               </div>
               <p className="mt-6 text-[14px] text-cream/75">A few simple questions, one at a time. No forms, no search box.</p>
@@ -58,6 +72,36 @@ export default function Home() {
             </ul>
           </Container>
         </section>
+
+        {featured.length ? (
+          <section className="pb-20" aria-labelledby="popular">
+            <Container>
+              <div className="flex flex-wrap items-end justify-between gap-4">
+                <h2 id="popular" className="max-w-xl text-[34px] sm:text-[44px]">
+                  Popular places in India
+                </h2>
+                <Link href="/destinations" className="text-[16px] text-forest underline underline-offset-4">
+                  All {india.length} destinations
+                </Link>
+              </div>
+              <ul className="mt-10 grid grid-cols-2 gap-4 lg:grid-cols-4">
+                {featured.map((d) => (
+                  <li key={d.id}>
+                    <Link href={`/destinations/${d.id}`} className="lift group block overflow-hidden rounded-[var(--radius-card)] bg-surface">
+                      <Scene kind={d.scene} seed={d.id} label={`${d.name}, ${d.region}`} photoUrl={d.heroImageUrl} className="aspect-[4/3]" />
+                      <span className="block px-4 pb-4 pt-3">
+                        <span className="block font-serif text-[20px] leading-tight group-hover:text-forest">{d.name}</span>
+                        <span className="mt-1 block text-[13px] text-ink-soft">
+                          {d.region} · {d.suggestedDaysMin}–{d.suggestedDaysMax} days
+                        </span>
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </Container>
+          </section>
+        ) : null}
 
         {/* What you get — honest, plain */}
         <section className="border-y border-line bg-[#efe8da] py-20" aria-labelledby="shape">
@@ -98,6 +142,34 @@ export default function Home() {
             <SampleDay />
           </Container>
         </section>
+
+        {posts.length ? (
+          <section className="pt-20" aria-labelledby="guides">
+            <Container>
+              <div className="flex flex-wrap items-end justify-between gap-4">
+                <h2 id="guides" className="max-w-xl text-[34px] sm:text-[44px]">
+                  India travel guides
+                </h2>
+                <Link href="/blog" className="text-[16px] text-forest underline underline-offset-4">
+                  All guides
+                </Link>
+              </div>
+              <ul className="mt-10 grid gap-5 md:grid-cols-3">
+                {posts.map((p) => (
+                  <li key={p.id}>
+                    <Link href={`/blog/${p.slug}`} className="lift group block h-full overflow-hidden rounded-[var(--radius-card)] border border-line bg-surface">
+                      <Scene kind="mountains" seed={p.slug} label={p.title} photoUrl={p.coverImageUrl} className="aspect-[16/9]" />
+                      <span className="block p-5">
+                        <span className="block font-serif text-[21px] leading-tight group-hover:text-forest">{p.title}</span>
+                        <span className="mt-2 block text-[14px] text-ink-soft">{p.description}</span>
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </Container>
+          </section>
+        ) : null}
 
         {/* Community map */}
         <section className="py-20" aria-labelledby="map-teaser">
@@ -158,7 +230,6 @@ function SampleDay() {
             </li>
           ))}
         </ol>
-        <p className="mt-5 text-[13px] text-ink-soft">Illustrative estimate — not live pricing.</p>
       </div>
     </figure>
   );
