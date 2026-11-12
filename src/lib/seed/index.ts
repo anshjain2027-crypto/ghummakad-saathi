@@ -6,15 +6,27 @@ import { BLOG_VERSION, SEED_POSTS } from "./blog";
 
 export { BLOG_VERSION };
 
-/** Inserts starter guides once; never overwrites posts edited in the admin. */
+/**
+ * Inserts starter guides once. A guide with `replacesBodyMd5` is rewritten
+ * only while its live body still matches one of those earlier seeded bodies,
+ * so posts edited in the admin are never overwritten.
+ */
 export async function seedBlog(q: Queryable) {
   for (const p of SEED_POSTS) {
     await q.query(
-      `insert into public.blog_post (slug, title, description, body_md, destination_id, tags, status, published_at)
-       values ($1, $2, $3, $4, (select id from public.destination where id = $5), $6, 'published', $7)
+      `insert into public.blog_post (slug, title, description, body_md, destination_id, cover_image_url, cover_credit, tags, status, published_at)
+       values ($1, $2, $3, $4, (select id from public.destination where id = $5), $6, $7, $8, 'published', $9)
        on conflict (slug) do nothing`,
-      [p.slug, p.title, p.description, p.body, p.destinationId, p.tags, p.publishedAt],
+      [p.slug, p.title, p.description, p.body, p.destinationId, p.coverImageUrl ?? null, p.coverCredit ?? null, p.tags, p.publishedAt],
     );
+    if (p.replacesBodyMd5?.length) {
+      await q.query(
+        `update public.blog_post
+            set title = $2, description = $3, body_md = $4, cover_image_url = $5, cover_credit = $6, tags = $7, updated_at = now()
+          where slug = $1 and md5(body_md) = any($8::text[])`,
+        [p.slug, p.title, p.description, p.body, p.coverImageUrl ?? null, p.coverCredit ?? null, p.tags, p.replacesBodyMd5],
+      );
+    }
   }
   await q.query(
     `insert into public.app_setting (key, value, updated_at) values ('blog_version', $1::jsonb, now())
