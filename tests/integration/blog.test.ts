@@ -11,6 +11,29 @@ describe("blog", () => {
     expect(triund?.destinationId).toBe("mcleodganj-triund");
   });
 
+  test("a guide revision replaces the seeded original but never an admin edit", async () => {
+    const { seedBlog } = await import("@/lib/seed");
+    const rev = SEED_POSTS.find((p) => p.replacesBodyMd5?.length);
+    expect(rev).toBeDefined();
+    const old = "old seeded body";
+    const oldMd5 = (await asService((q) => q.query<{ h: string }>(`select md5($1) as h`, [old])))[0].h;
+    const test = { ...rev!, replacesBodyMd5: [oldMd5] };
+    SEED_POSTS.splice(SEED_POSTS.indexOf(rev!), 1, test);
+    try {
+      // Unedited original: replaced.
+      await asService((q) => q.query(`update public.blog_post set body_md = $2 where slug = $1`, [rev!.slug, old]));
+      await asService((q) => seedBlog(q));
+      expect((await getPublishedPost(rev!.slug))?.bodyMd).toBe(rev!.body);
+      // Edited in the admin: left alone.
+      await asService((q) => q.query(`update public.blog_post set body_md = 'edited by a human' where slug = $1`, [rev!.slug]));
+      await asService((q) => seedBlog(q));
+      expect((await getPublishedPost(rev!.slug))?.bodyMd).toBe("edited by a human");
+    } finally {
+      SEED_POSTS.splice(SEED_POSTS.indexOf(test), 1, rev!);
+      await asService((q) => q.query(`update public.blog_post set body_md = $2 where slug = $1`, [rev!.slug, rev!.body]));
+    }
+  });
+
   test("drafts are invisible to the public, even via direct SQL", async () => {
     await asService((q) =>
       q.query(

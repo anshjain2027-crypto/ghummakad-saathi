@@ -15,15 +15,17 @@ import { ButtonLink, Chip, Container } from "@/components/ui";
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const d = await getDestination((await params).slug);
   if (!d) return { title: "Destination" };
-  const title = `${d.name}, ${d.region} travel guide & itinerary`;
+  const base = `${d.name}, ${d.region} travel guide & itinerary`;
+  // The site-wide title suffix says "India trip planner"; that's wrong on Kyoto or Lisbon, so non-India pages get their own.
+  const title = d.country === "India" ? base : { absolute: `${base} · Ghummakad Saathi trip planner` };
   const description = `${d.tagline} ${d.story.slice(0, 120)}…`;
   const images = d.heroImageUrl ? [d.heroImageUrl] : undefined;
   return {
     title,
     description,
     alternates: { canonical: `/destinations/${d.id}` },
-    openGraph: { type: "article", title, description, url: `/destinations/${d.id}`, images },
-    twitter: { card: "summary_large_image", title, description, images },
+    openGraph: { type: "article", title: base, description, url: `/destinations/${d.id}`, images },
+    twitter: { card: "summary_large_image", title: base, description, images },
   };
 }
 

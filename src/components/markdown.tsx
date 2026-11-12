@@ -4,7 +4,9 @@ import { Fragment, type ReactNode } from "react";
  * Small, safe Markdown renderer for blog posts (no HTML passthrough — every
  * piece of text is rendered as React text, so posts can't inject scripts).
  * Supports: ## / ### headings, paragraphs, - and 1. lists, > quotes,
- * **bold**, *italic*, [links](https://…) and internal links (/plan).
+ * **bold**, *italic*, [links](https://…) and internal links (/plan),
+ * pipe tables, and ![alt](/path.jpg) images or ![alt](/path.mp4) videos on
+ * their own line, with an optional *italic* caption line right after.
  */
 
 function inline(text: string, keyBase: string): ReactNode[] {
@@ -38,6 +40,12 @@ function inline(text: string, keyBase: string): ReactNode[] {
   return out;
 }
 
+const MEDIA_RE = /^!\[([^\]]*)\]\(([^)\s]+)\)$/;
+const VIDEO_RE = /\.(mp4|webm)(\?.*)?$/i;
+/** Own files (/blog/…) or https only — never javascript:, data: or protocol-relative URLs. */
+const SAFE_SRC = /^(https:\/\/|\/(?!\/))/;
+const TABLE_SEP = /^\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)*\|?\s*$/;
+
 export function slugifyHeading(s: string) {
   return s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60);
 }
@@ -54,6 +62,60 @@ export function Markdown({ source }: { source: string }) {
       continue;
     }
     const k = `b${key++}`;
+    const media = line.trim().match(MEDIA_RE);
+    if (media && SAFE_SRC.test(media[2])) {
+      const [, alt, src] = media;
+      i++;
+      // An italic line straight after the image or video is its caption (photo credit, etc.).
+      let caption: string | null = null;
+      if (i < lines.length && /^\*[^*].*\*$/.test(lines[i].trim())) caption = lines[i++].trim().slice(1, -1);
+      blocks.push(
+        <figure key={k} className="mt-8">
+          {VIDEO_RE.test(src) ? (
+            <video src={src} controls playsInline preload="metadata" aria-label={alt} className="w-full rounded-[var(--radius-card)] bg-ink" />
+          ) : (
+            // eslint-disable-next-line @next/next/no-img-element -- plain img keeps blog posts free of next/image remote config.
+            <img src={src} alt={alt} loading="lazy" decoding="async" className="w-full rounded-[var(--radius-card)]" />
+          )}
+          {caption ? <figcaption className="mt-2 text-[14px] text-ink-soft">{inline(caption, `${k}-c`)}</figcaption> : null}
+        </figure>,
+      );
+      continue;
+    }
+    if (/^\|.*\|\s*$/.test(line) && i + 1 < lines.length && TABLE_SEP.test(lines[i + 1])) {
+      const cells = (l: string) => l.trim().replace(/^\||\|$/g, "").split("|").map((c) => c.trim());
+      const head = cells(line);
+      i += 2;
+      const rows: string[][] = [];
+      while (i < lines.length && /^\|.*\|\s*$/.test(lines[i])) rows.push(cells(lines[i++]));
+      blocks.push(
+        <div key={k} className="mt-6 overflow-x-auto">
+          <table className="w-full border-collapse text-left text-[16px]">
+            <thead>
+              <tr>
+                {head.map((c, j) => (
+                  <th key={j} className="border-b-2 border-sand px-3 py-2 font-semibold">
+                    {inline(c, `${k}-h${j}`)}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r, ri) => (
+                <tr key={ri}>
+                  {r.map((c, j) => (
+                    <td key={j} className="border-b border-sand px-3 py-2 align-top">
+                      {inline(c, `${k}-${ri}-${j}`)}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>,
+      );
+      continue;
+    }
     const h = line.match(/^(#{2,3})\s+(.*)$/);
     if (h) {
       const Tag = h[1].length === 2 ? "h2" : "h3";
