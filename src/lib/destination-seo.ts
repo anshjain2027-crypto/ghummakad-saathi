@@ -49,3 +49,24 @@ export function destinationFaq(d: Destination): { q: string; a: string }[] {
   if (d.practicalNote) faq.push({ q: `Anything to know before visiting ${d.name}?`, a: d.practicalNote });
   return faq;
 }
+
+/** "Jammu & Kashmir" -> "jammu-and-kashmir" */
+export function stateSlug(state: string): string {
+  return state.toLowerCase().replace(/&/g, "and").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+}
+
+/** A state gets its own guide page only with at least this many destinations (thinner pages don't help readers or rankings). */
+export const MIN_DESTINATIONS_FOR_STATE_PAGE = 2;
+
+export function statesWithPages<T extends Pick<Destination, "region" | "country">>(all: T[]): { state: string; slug: string; destinations: T[] }[] {
+  const m = new Map<string, T[]>();
+  for (const d of all) if (isIndia(d)) m.set(stateOf(d), [...(m.get(stateOf(d)) ?? []), d]);
+  return [...m.entries()]
+    .filter(([, l]) => l.length >= MIN_DESTINATIONS_FOR_STATE_PAGE)
+    .sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]))
+    .map(([state, destinations]) => ({ state, slug: stateSlug(state), destinations }));
+}
+
+export const MONTHS = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"] as const;
+export const monthName = (i: number) => MONTHS[i - 1].charAt(0).toUpperCase() + MONTHS[i - 1].slice(1);
+export { monthList, inr };
