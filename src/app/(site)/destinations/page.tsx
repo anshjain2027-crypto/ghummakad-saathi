@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { listDestinations } from "@/lib/data/catalog";
-import { isIndia, stateOf, statesWithPages } from "@/lib/destination-seo";
+import { MONTHS, isIndia, monthName, stateOf, statesWithPages } from "@/lib/destination-seo";
 import { Scene } from "@/components/scene";
 import { ButtonLink, Container } from "@/components/ui";
 import { SITE_URL } from "@/lib/site";
@@ -61,6 +61,12 @@ export default async function DestinationsIndex() {
         <p className="mt-4 text-[18px] text-ink-soft">
           {india.length} places we know well, from Himalayan villages to desert forts and backwaters. Each guide covers the best months, how many days you need,
           how to get there and what it really costs.
+        </p>
+        <p className="mt-4 text-[16px]">
+          Travelling soon?{" "}
+          <Link href={`/where-to-go/${MONTHS[new Date().getMonth()]}`} className="text-forest underline underline-offset-4">
+            See where to go in {monthName(new Date().getMonth() + 1)}
+          </Link>
         </p>
         <nav aria-label="Jump to a state" className="mt-6 flex flex-wrap gap-2">
           {states.map(([s]) => (
