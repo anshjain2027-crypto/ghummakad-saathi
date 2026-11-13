@@ -2,6 +2,8 @@ import type { NextConfig } from "next";
 
 const isDev = process.env.NODE_ENV !== "production";
 const supabase = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+/** PostHog region ("us" or "eu"). Events go through /ingest on our own domain so ad blockers don't drop them. */
+const posthogRegion = process.env.NEXT_PUBLIC_POSTHOG_REGION === "eu" ? "eu" : "us";
 
 /**
  * Content-Security-Policy. Next.js inline bootstrap scripts need
@@ -25,6 +27,15 @@ const csp = [
 ].join("; ");
 
 const nextConfig: NextConfig = {
+  // Required by the PostHog /ingest reverse proxy (its API paths end in a slash).
+  skipTrailingSlashRedirect: true,
+  async rewrites() {
+    return [
+      { source: "/ingest/static/:path*", destination: `https://${posthogRegion}-assets.i.posthog.com/static/:path*` },
+      { source: "/ingest/array/:path*", destination: `https://${posthogRegion}-assets.i.posthog.com/array/:path*` },
+      { source: "/ingest/:path*", destination: `https://${posthogRegion}.i.posthog.com/:path*` },
+    ];
+  },
   // This app is session-driven (auth, drafts, entitlements) and renders per request.
   cacheComponents: false,
   partialPrefetching: false,
