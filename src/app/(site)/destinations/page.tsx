@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { listDestinations } from "@/lib/data/catalog";
-import { isIndia, stateOf } from "@/lib/destination-seo";
+import { isIndia, stateOf, statesWithPages } from "@/lib/destination-seo";
 import { Scene } from "@/components/scene";
 import { ButtonLink, Container } from "@/components/ui";
 import { SITE_URL } from "@/lib/site";
@@ -42,6 +42,7 @@ export default async function DestinationsIndex() {
     const s = stateOf(d);
     byState.set(s, [...(byState.get(s) ?? []), d]);
   }
+  const stateGuide = new Map(statesWithPages(all).map((s) => [s.state, s.slug]));
   const states = [...byState.entries()].sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]));
 
   const jsonLd = {
@@ -72,7 +73,14 @@ export default async function DestinationsIndex() {
 
       {states.map(([s, list]) => (
         <section key={s} id={s.toLowerCase().replace(/[^a-z0-9]+/g, "-")} className="mt-14 scroll-mt-20" aria-label={s}>
-          <h2 className="text-[30px]">{s}</h2>
+          <div className="flex flex-wrap items-baseline justify-between gap-3">
+            <h2 className="text-[30px]">{s}</h2>
+            {stateGuide.get(s) ? (
+              <Link href={`/india/${stateGuide.get(s)}`} className="text-[15px] text-forest underline underline-offset-4">
+                {s} travel guide
+              </Link>
+            ) : null}
+          </div>
           <ul className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
             {list.map((d) => (
               <Card key={d.id} d={d} />

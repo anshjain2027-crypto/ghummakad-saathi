@@ -6,7 +6,7 @@ import { notFound } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { postsForDestination } from "@/lib/data/blog";
 import { curatedPlaces, getDestination, listDestinations } from "@/lib/data/catalog";
-import { destinationFaq, isIndia, stateOf } from "@/lib/destination-seo";
+import { destinationFaq, isIndia, stateOf, statesWithPages } from "@/lib/destination-seo";
 import { PLACE_CATEGORIES } from "@/lib/domain";
 import { Scene } from "@/components/scene";
 import { SITE_URL } from "@/lib/site";
@@ -40,6 +40,7 @@ export default async function DestinationPage({ params }: { params: Promise<{ sl
   const nearby = all.filter((o) => o.id !== d.id && o.country === d.country && stateOf(o) === state).slice(0, 4);
   const more = nearby.length >= 3 ? nearby : [...nearby, ...all.filter((o) => o.id !== d.id && o.country === d.country && !nearby.includes(o))].slice(0, 4);
   const faq = destinationFaq(d);
+  const stateGuideSlug = statesWithPages(all).find((x) => x.state === state)?.slug;
   const months = d.bestMonths.map((m) => new Date(2026, m - 1, 1).toLocaleString("en-IN", { month: "short" })).join(", ");
   const jsonLd = [{
     "@context": "https://schema.org",
@@ -73,7 +74,7 @@ export default async function DestinationPage({ params }: { params: Promise<{ sl
           <nav aria-label="Breadcrumb" className="text-[14px] text-cream/80">
             <Link href="/destinations" className="underline decoration-cream/40 underline-offset-4 hover:decoration-cream">Destinations</Link>
             <span aria-hidden> / </span>
-            {isIndia(d) ? <Link href={`/destinations#${state.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`} className="underline decoration-cream/40 underline-offset-4 hover:decoration-cream">{state}</Link> : <span>{d.country}</span>}
+            {isIndia(d) ? <Link href={stateGuideSlug ? `/india/${stateGuideSlug}` : `/destinations#${state.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`} className="underline decoration-cream/40 underline-offset-4 hover:decoration-cream">{state}</Link> : <span>{d.country}</span>}
           </nav>
           <p className="mt-1 text-cream/85">
             {d.region}, {d.country}
@@ -131,9 +132,16 @@ export default async function DestinationPage({ params }: { params: Promise<{ sl
                   </li>
                 ))}
               </ul>
-              <Link href="/destinations" className="mt-5 inline-block text-[15px] text-forest underline underline-offset-4">
-                See all destinations
-              </Link>
+              <p className="mt-5 flex flex-wrap gap-x-5 gap-y-2 text-[15px]">
+                {stateGuideSlug ? (
+                  <Link href={`/india/${stateGuideSlug}`} className="text-forest underline underline-offset-4">
+                    {state} travel guide
+                  </Link>
+                ) : null}
+                <Link href="/destinations" className="text-forest underline underline-offset-4">
+                  See all destinations
+                </Link>
+              </p>
             </section>
           ) : null}
         </div>
