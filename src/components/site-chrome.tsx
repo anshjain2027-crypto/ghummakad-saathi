@@ -98,6 +98,7 @@ export function SiteFooter() {
           <Link href="/plan" className="hover:text-forest">Plan a trip</Link>
           <Link href="/map" className="hover:text-forest">Community map</Link>
           <Link href="/destinations" className="hover:text-forest">India destinations</Link>
+          <Link href="/where-to-go/january" className="hover:text-forest">Where to go, month by month</Link>
           <Link href="/blog" className="hover:text-forest">India travel guides</Link>
           <Link href="/pricing" className="hover:text-forest">Pricing</Link>
           <Link href="/my/trips" className="hover:text-forest">My trips</Link>
