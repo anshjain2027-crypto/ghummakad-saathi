@@ -1,4 +1,5 @@
 import { NOVEMBER_2026_POSTS } from "./blog-nov-2026";
+import { NOVEMBER_2026_B_POSTS } from "./blog-nov-2026-b";
 
 /**
  * Starter travel guides written for international visitors to India.
@@ -24,7 +25,7 @@ export type SeedPost = {
   replacesBodyMd5?: string[];
 };
 
-export const BLOG_VERSION = "2026-11-12.2";
+export const BLOG_VERSION = "2026-11-13.1";
 
 export const SEED_POSTS: SeedPost[] = [
   {
@@ -399,4 +400,5 @@ A comfortable 5-day trip for two typically comes to about **$700–1,100** exclu
 Our planner builds this kind of trip around your mood, pace and budget — then shows how to get there from your city and lets you change anything for 30 days.`,
   },
   ...NOVEMBER_2026_POSTS,
+  ...NOVEMBER_2026_B_POSTS,
 ];
